@@ -1,0 +1,10 @@
+runx
+- go/yaml
+- Runfile
+- Zero dependencies
+- --help/command enumeration
+- Allow inline command documentation
+- Allow arguments to be passed (e.g. runx foo --flag 1 2 3)
+- Allow sub commands
+- Variables?
+- Allow for easy OS/platform consistency

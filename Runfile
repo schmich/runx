@@ -1,0 +1,7 @@
+composer:
+  install:
+    command: docker-compose -f docker-compose.yml -f docker-utils.yml run composer install
+    help: Install Composer dependencies.
+  update:
+    command: docker-compose -f docker-compose.yml -f docker-utils.yml run composer update
+    help: Update Composer dependencies.
