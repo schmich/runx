@@ -8,3 +8,4 @@ runx
 - Allow sub commands
 - Variables?
 - Allow for easy OS/platform consistency
+- Would be good to allow for more involved scripting (e.g. deployments, multiple commands, error checking), but this would likely require a full-blown language
