@@ -1,6 +1,6 @@
 runx
 - go/yaml
-- Runfile
+- Runfile - support locating Runfile even when in nested dirs (like Rakefile)
 - Zero dependencies
 - --help/command enumeration
 - Allow inline command documentation
@@ -9,3 +9,4 @@ runx
 - Variables?
 - Allow for easy OS/platform consistency
 - Would be good to allow for more involved scripting (e.g. deployments, multiple commands, error checking), but this would likely require a full-blown language
+- Similar: batsh, lua, ...
