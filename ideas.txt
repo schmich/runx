@@ -10,3 +10,9 @@ runx
 - Allow for easy OS/platform consistency
 - Would be good to allow for more involved scripting (e.g. deployments, multiple commands, error checking), but this would likely require a full-blown language
 - Similar: batsh, lua, ...
+
+mkdir hello-1.0.0-win32\lib\app
+copy hello.rb hello-1.0.0-win32\lib\app
+mkdir hello-1.0.0-win32\lib\ruby
+\dev\work\bin\go-bindata.exe -nometadata -nocompress hello-1.0.0-win32/... && go build && rmdir /s/q out && runx && out\hello-1.0.0-win32\hello.bat
+copy /y runx.rb win32\lib\app\runx.rb && \dev\work\bin\go-bindata.exe -nometadata -nocompress win32/... && go build && runx
