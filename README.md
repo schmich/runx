@@ -1,6 +1,6 @@
 # runx
 
-Cross-platform, zero-install, Ruby-based command runner.
+Cross-platform, zero-install, Ruby-based task runner.
 
 ## Setup
 
@@ -8,7 +8,7 @@ Cross-platform, zero-install, Ruby-based command runner.
 
 ## Usage
 
-Create a `Runfile` with your commands:
+Create a `Runfile` with your tasks:
 
 ```ruby
 doc 'Start server.'
@@ -27,17 +27,17 @@ run 'migrate:make' do |argv|
 end
 ```
 
-Run `runx` to see available commands:
+Run `runx` to see available tasks:
 
 ```
 $ runx
-Commands:
+Tasks:
   up                Start server.
   down              Stop server.
   migrate:make      Create Laravel migration.
 ```
 
-Run `runx <command>` to run a command:
+Run `runx <task>` to run a task:
 
 ```
 $ runx up
@@ -55,10 +55,8 @@ Parent directories are searched up to the root until a `Runfile` is found.
 
 ## How It Works
 
-The Go-built runx binary contains an OS-specific version of [Phusion's Traveling Ruby](https://github.com/phusion/traveling-ruby) runtime,
-embedded with [Jim Teeuwen's go-bindata](https://github.com/jteeuwen/go-bindata).
-At runtime, the Ruby distribution is extracted to `~/.runx/<hash>`, the runx Ruby library is loaded,
-the `Runfile` is parsed, and commands are dispatched.
+The Go-built runx binary contains an OS-specific version of [Phusion's Traveling Ruby](https://github.com/phusion/traveling-ruby) runtime, embedded with [Jim Teeuwen's go-bindata](https://github.com/jteeuwen/go-bindata).
+At runtime, the Ruby distribution is extracted to `~/.runx/<hash>`, the runx binary spawns `ruby`, which loads the runx Ruby library, which loads the `Runfile` and runs tasks.
 
 ## License
 
