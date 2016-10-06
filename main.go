@@ -4,6 +4,7 @@ import (
   "strings"
   "log"
   "io"
+  "io/ioutil"
   "path"
   "os"
   "os/exec"
@@ -49,7 +50,25 @@ func deployRuntime() (string, error) {
     return "", err
   }
 
-  dir := path.Join(home, ".runx", digest)
+  runxHome := path.Join(home, ".runx")
+  err = os.Mkdir(runxHome, 0700)
+  if err != nil && !os.IsExist(err) {
+    return "", err
+  }
+
+  files, err := ioutil.ReadDir(runxHome)
+  if err != nil {
+    return "", err
+  }
+
+  for _, file := range files {
+    if file.IsDir() && file.Name() != digest {
+      remove := path.Join(runxHome, file.Name())
+      os.RemoveAll(remove)
+    }
+  }
+
+  dir := path.Join(runxHome, digest)
   err = os.Mkdir(dir, 0700)
   if os.IsExist(err) {
     return dir, nil
