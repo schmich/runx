@@ -54,8 +54,8 @@ Dir.chdir(runfile_dir) do
   manager = TaskManager.new
   manager.instance_eval File.read(runfile), runfile
 
-  task = ARGV[0]
-  if !task
+  task_name = ARGV[0]
+  if !task_name
     puts 'Commands:'
     width = manager.tasks.map { |name, task| name.length }.max
     manager.tasks.each do |name, task|
@@ -63,9 +63,9 @@ Dir.chdir(runfile_dir) do
       puts "  #{task.name}#{space}#{task.doc}"
     end
   else
-    task = manager.tasks[task.downcase]
+    task = manager.tasks[task_name.downcase]
     if task.nil?
-      puts "#{task} not found."
+      puts "Task '#{task_name}' not found."
       exit 1
     end
 
