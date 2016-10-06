@@ -56,7 +56,7 @@ Dir.chdir(runfile_dir) do
 
   task_name = ARGV[0]
   if !task_name
-    puts 'Commands:'
+    puts 'Tasks:'
     width = manager.tasks.map { |name, task| name.length }.max
     manager.tasks.each do |name, task|
       space = ' ' * (width - name.length + 6)
