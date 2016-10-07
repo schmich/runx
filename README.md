@@ -51,7 +51,7 @@ Created Migration: 2016_10_06_133147_create_some_table
 Generating optimized class loader
 ```
 
-Parent directories are searched up to the root until a `Runfile` is found, so you can run `runx` in subdirectories, too.
+Parent directories are searched up to the root until a `Runfile` is found, so you can use `runx` in subdirectories, too.
 
 ## How It Works
 
