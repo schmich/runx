@@ -21,7 +21,7 @@ run :down do
   system 'docker-compose -f services.yml -f env.yml down'
 end
 
-doc 'Create Laravel migration.'
+doc 'Create database migration.'
 run 'migrate:make' do |argv|
   system *%w(docker-compose -f services.yml -f env.yml exec app php /src/artisan migrate:make) + argv
 end
@@ -34,7 +34,7 @@ $ runx
 Tasks:
   up                Start server.
   down              Stop server.
-  migrate:make      Create Laravel migration.
+  migrate:make      Create database migration.
 ```
 
 Run `runx <task>` to run a task:
