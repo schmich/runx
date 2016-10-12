@@ -1,6 +1,7 @@
 package main
 
 import (
+  "fmt"
   "log"
   "io"
   "io/ioutil"
@@ -13,6 +14,8 @@ import (
   "github.com/kardianos/osext"
   "github.com/mitchellh/go-homedir"
 )
+
+const Version = "0.0.1"
 
 func selfDigest() (string, error) {
   var result []byte
@@ -82,6 +85,13 @@ func deployRuntime() (string, error) {
 }
 
 func main() {
+  // We exclude the first argument since it's just the current process path.
+  args := os.Args[1:]
+  if len(args) == 1 && (args[0] == "-v" || args[0] == "--version") {
+    fmt.Println("runx", Version)
+    return
+  }
+
   dir, err := deployRuntime()
   if err != nil {
     log.Fatal(err)
@@ -90,10 +100,7 @@ func main() {
 
   ruby := setupRuntime(dir)
   script := path.Join(dir, "runtime", "lib", "app", "runx.rb")
-
-  // We want to run "ruby runx.rb [args...]".
-  // We exclude the first argument to this process since it's just self.
-  args := append([]string{script}, os.Args[1:]...)
+  args = append([]string{script}, args...)
 
   var cmd *exec.Cmd
 

@@ -52,7 +52,7 @@ end
 runfile_dir = File.dirname(runfile)
 Dir.chdir(runfile_dir) do
   manager = TaskManager.new
-  manager.instance_eval File.read(runfile), runfile
+  manager.instance_eval(File.read(runfile), runfile)
 
   task_name = ARGV[0]
   if !task_name
