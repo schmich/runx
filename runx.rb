@@ -15,16 +15,16 @@ end
 class TaskManager
   def initialize
     @tasks = {}
-    @message = nil
+    @doc = nil
   end
 
-  def doc(message)
-    @message = message
+  def doc(doc)
+    @doc = doc
   end
 
   def run(name, &block)
-    @tasks[name.to_s.downcase] = Task.new(name.to_s, @message, block) 
-    @message = nil
+    @tasks[name.to_s.downcase] = Task.new(name.to_s, @doc, block) 
+    @doc = nil
   end
 
   attr_accessor :tasks
@@ -74,6 +74,10 @@ Dir.chdir(runfile_dir) do
     args = ARGV[1...ARGV.length]
     ARGV.clear
 
-    task.run(args)
+    begin
+      task.run(args)
+    rescue Interrupt => e
+      # Handle interrupt and exit.
+    end
   end
 end
