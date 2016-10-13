@@ -8,7 +8,6 @@ import (
   "path"
   "os"
   "os/exec"
-  "os/signal"
   "hash/fnv"
   "encoding/hex"
   "github.com/kardianos/osext"
@@ -102,18 +101,7 @@ func main() {
   script := path.Join(dir, "runtime", "lib", "app", "runx.rb")
   args = append([]string{script}, args...)
 
-  var cmd *exec.Cmd
-
-  interrupt := make(chan os.Signal, 1)
-  signal.Notify(interrupt, os.Interrupt)
-  go func() {
-    <-interrupt
-    if cmd != nil {
-      cmd.Process.Kill()
-    }
-  }()
-
-  cmd = exec.Command(ruby, args...)
+  cmd := exec.Command(ruby, args...)
   cmd.Stdout = os.Stdout
   cmd.Stderr = os.Stderr
   cmd.Stdin = os.Stdin
