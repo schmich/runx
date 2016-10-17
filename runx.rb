@@ -23,6 +23,14 @@ class TaskNotFoundError < StandardError
   attr_reader :name
 end
 
+class DuplicateTaskError < StandardError
+  def initialize(name)
+    @name = name
+  end
+
+  attr_reader :name
+end
+
 class TaskManager
   def initialize
     @tasks = {}
@@ -67,8 +75,13 @@ class TaskDefinitionContext
   end
 
   def run(name, &block)
-    # TODO: Check for task duplication.
-    @tasks[name.to_s.downcase] = Task.new(name.to_s, @doc, block, @dir)
+    key = name.to_s.downcase
+
+    if @tasks.include?(key)
+      raise DuplicateTaskError.new(name)
+    end
+
+    @tasks[key] = Task.new(name.to_s, @doc, block, @dir)
     @doc = nil
   end
 
@@ -104,24 +117,26 @@ if runfile.nil?
   exit 1
 end
 
-manager = TaskManager.new
-manager.load(runfile)
+begin
+  manager = TaskManager.new
+  manager.load(runfile)
 
-task_name = ARGV[0]
-if !task_name
-  manager.show_help
-else
-  # Clear ARGV to avoid interference with `gets`:
-  # http://ruby-doc.org/core-2.1.5/Kernel.html#method-i-gets
-  args = ARGV[1...ARGV.length]
-  ARGV.clear
-
-  begin
+  task_name = ARGV[0]
+  if !task_name
+    manager.show_help
+  else
+    # Clear ARGV to avoid interference with `gets`:
+    # http://ruby-doc.org/core-2.1.5/Kernel.html#method-i-gets
+    args = ARGV[1...ARGV.length]
+    ARGV.clear
     manager.run_task(task_name, *args)
-  rescue TaskNotFoundError => e
-    puts "Task '#{e.name}' not found."
-    exit 1
-  rescue Interrupt => e
-    # Ignore interrupt and exit.
   end
+rescue TaskNotFoundError => e
+  puts "Task '#{e.name}' not found."
+  exit 1
+rescue DuplicateTaskError => e
+  puts "Task '#{e.name}' is already defined."
+  exit 1
+rescue Interrupt => e
+  # Ignore interrupt and exit.
 end
