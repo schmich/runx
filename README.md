@@ -22,8 +22,8 @@ run :down do
 end
 
 doc 'Create database migration.'
-run 'migrate:make' do |argv|
-  system *%w(docker-compose -f services.yml -f env.yml exec app php /src/artisan migrate:make) + argv
+run 'migrate:make' do |*args|
+  system *%w(docker-compose -f services.yml -f env.yml exec app php /src/artisan migrate:make) + args
 end
 ```
 

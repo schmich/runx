@@ -6,9 +6,9 @@ class Task
     @dir = dir
   end
 
-  def run(context, args)
+  def run(context, *args)
     Dir.chdir(@dir) do
-      context.instance_exec(args, &@action)
+      context.instance_exec(*args, &@action)
     end
   end
 
@@ -51,7 +51,7 @@ class TaskManager
       raise TaskNotFoundError.new(name)
     end
 
-    task.run(@run_context, args)
+    task.run(@run_context, *args)
   end
 end
 
