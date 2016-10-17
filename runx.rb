@@ -49,11 +49,11 @@ class TaskManager
   end
 
   def show_help
-    puts 'Tasks:'
+    $stderr.puts 'Tasks:'
     width = @tasks.map { |name, task| name.length }.max
     @tasks.each do |name, task|
       space = ' ' * (width - name.length + 6)
-      puts "  #{task.name}#{space}#{task.doc}"
+      $stderr.puts "  #{task.name}#{space}#{task.doc}"
     end
   end
 
@@ -120,7 +120,7 @@ end
 
 runfile = find_runfile
 if runfile.nil?
-  $stderr.puts "No Runfile found."
+  $stderr.puts '[runx] No Runfile found.'
   exit 1
 end
 
@@ -136,13 +136,16 @@ begin
     # http://ruby-doc.org/core-2.1.5/Kernel.html#method-i-gets
     args = ARGV[1...ARGV.length]
     ARGV.clear
+
+    dir = File.dirname(runfile)
+    $stderr.puts "[runx] In #{dir}."
     manager.run_task(task_name, *args)
   end
 rescue TaskNotFoundError => e
-  puts "Task '#{e.name}' not found."
+  $stderr.puts "[runx] Task '#{e.name}' not found."
   exit 1
 rescue DuplicateTaskError => e
-  puts "Task '#{e.name}' is already defined."
+  $stderr.puts "[runx] Task '#{e.name}' is already defined."
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
