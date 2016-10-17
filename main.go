@@ -1,6 +1,7 @@
 package main
 
 import (
+  "fmt"
   "io"
   "io/ioutil"
   "path"
@@ -113,7 +114,7 @@ func main() {
   // We exclude the first argument since it's just the current process path.
   args := os.Args[1:]
   if len(args) == 1 && (args[0] == "-v" || args[0] == "--version") {
-    log.Println("runx", Version)
+    fmt.Fprintln(os.Stderr, "runx", Version)
     return
   }
 
