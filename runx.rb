@@ -1,14 +1,17 @@
 class Task
-  def initialize(name, doc, action, dir)
+  def initialize(name, doc, block, dir)
     @name = name
     @doc = doc
-    @action = action
+    @block = block
     @dir = dir
   end
 
-  def run(context, *args)
+  def run(manager, *args)
+    block_self = eval('self', @block.binding)
+    context = TaskRunContext.new(manager, block_self)
+
     Dir.chdir(@dir) do
-      context.instance_exec(*args, &@action)
+      context.instance_exec(*args, &@block)
     end
   end
 
@@ -34,7 +37,6 @@ end
 class TaskManager
   def initialize
     @tasks = {}
-    @run_context = TaskRunContext.new(self)
   end
 
   def load(file)
@@ -59,7 +61,7 @@ class TaskManager
       raise TaskNotFoundError.new(name)
     end
 
-    task.run(@run_context, *args)
+    task.run(self, *args)
   end
 end
 
@@ -89,12 +91,17 @@ class TaskDefinitionContext
 end
 
 class TaskRunContext
-  def initialize(manager)
+  def initialize(manager, block_self)
     @manager = manager
+    @self = block_self
   end
 
   def run(name, *args)
     @manager.run_task(name, *args)
+  end
+
+  def method_missing(method, *args, &block)
+    @self.send(method, *args, &block)
   end
 end
 
