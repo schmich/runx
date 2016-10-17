@@ -1,3 +1,5 @@
+require 'pathname'
+
 class Task
   def initialize(name, doc, block, dir)
     @name = name
@@ -106,13 +108,11 @@ class TaskRunContext
 end
 
 def find_runfile
-  previous = nil
-  dir = Dir.pwd
-  while dir != previous
-    runfile = File.join(dir, 'Runfile')
-    return runfile.gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR) if File.exist?(runfile)
-    previous = dir
-    dir = File.expand_path(File.join(dir, '..'))
+  Pathname.getwd.ascend do |path|
+    runfile = File.join(path.to_s, 'Runfile')
+    if File.exist?(runfile)
+      return runfile.gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+    end
   end
 
   return nil
