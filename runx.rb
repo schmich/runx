@@ -1,21 +1,65 @@
 class Task
-  def initialize(name, doc, action)
+  def initialize(name, doc, action, dir)
     @name = name
     @doc = doc
     @action = action
+    @dir = dir
   end
 
-  def run(args)
-    @action.call(args)
+  def run(context, args)
+    Dir.chdir(@dir) do
+      context.instance_exec(args, &@action)
+    end
   end
 
   attr_accessor :name, :doc
 end
 
+class TaskNotFoundError < StandardError
+  def initialize(name)
+    @name = name
+  end
+
+  attr_reader :name
+end
+
 class TaskManager
   def initialize
     @tasks = {}
+    @run_context = TaskRunContext.new(self)
+  end
+
+  def load(file)
+    dir = File.dirname(file)
+    context = TaskDefinitionContext.new(dir)
+    context.instance_eval(File.read(file), file)
+    @tasks.merge!(context.tasks)
+  end
+
+  def show_help
+    puts 'Tasks:'
+    width = @tasks.map { |name, task| name.length }.max
+    @tasks.each do |name, task|
+      space = ' ' * (width - name.length + 6)
+      puts "  #{task.name}#{space}#{task.doc}"
+    end
+  end
+
+  def run_task(name, *args)
+    task = @tasks[name.to_s.downcase]
+    if task.nil?
+      raise TaskNotFoundError.new(name)
+    end
+
+    task.run(@run_context, args)
+  end
+end
+
+class TaskDefinitionContext
+  def initialize(dir)
+    @tasks = {}
     @doc = nil
+    @dir = dir
   end
 
   def doc(doc)
@@ -23,11 +67,22 @@ class TaskManager
   end
 
   def run(name, &block)
-    @tasks[name.to_s.downcase] = Task.new(name.to_s, @doc, block) 
+    # TODO: Check for task duplication.
+    @tasks[name.to_s.downcase] = Task.new(name.to_s, @doc, block, @dir)
     @doc = nil
   end
 
   attr_accessor :tasks
+end
+
+class TaskRunContext
+  def initialize(manager)
+    @manager = manager
+  end
+
+  def run(name, *args)
+    @manager.run_task(name, *args)
+  end
 end
 
 def find_runfile
@@ -49,35 +104,24 @@ if runfile.nil?
   exit 1
 end
 
-runfile_dir = File.dirname(runfile)
-Dir.chdir(runfile_dir) do
-  manager = TaskManager.new
-  manager.instance_eval(File.read(runfile), runfile)
+manager = TaskManager.new
+manager.load(runfile)
 
-  task_name = ARGV[0]
-  if !task_name
-    puts 'Tasks:'
-    width = manager.tasks.map { |name, task| name.length }.max
-    manager.tasks.each do |name, task|
-      space = ' ' * (width - name.length + 6)
-      puts "  #{task.name}#{space}#{task.doc}"
-    end
-  else
-    task = manager.tasks[task_name.downcase]
-    if task.nil?
-      puts "Task '#{task_name}' not found."
-      exit 1
-    end
+task_name = ARGV[0]
+if !task_name
+  manager.show_help
+else
+  # Clear ARGV to avoid interference with `gets`:
+  # http://ruby-doc.org/core-2.1.5/Kernel.html#method-i-gets
+  args = ARGV[1...ARGV.length]
+  ARGV.clear
 
-    # Clear ARGV to avoid interference with `gets`:
-    # http://ruby-doc.org/core-2.1.5/Kernel.html#method-i-gets
-    args = ARGV[1...ARGV.length]
-    ARGV.clear
-
-    begin
-      task.run(args)
-    rescue Interrupt => e
-      # Handle interrupt and exit.
-    end
+  begin
+    manager.run_task(task_name, *args)
+  rescue TaskNotFoundError => e
+    puts "Task '#{e.name}' not found."
+    exit 1
+  rescue Interrupt => e
+    # Ignore interrupt and exit.
   end
 end
