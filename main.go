@@ -1,11 +1,10 @@
 package main
 
 import (
-  "fmt"
-  "log"
   "io"
   "io/ioutil"
   "path"
+  "time"
   "os"
   "os/exec"
   "hash/fnv"
@@ -15,6 +14,27 @@ import (
 )
 
 const Version = "0.0.1"
+
+func delay(fn func(), delay time.Duration) chan<- bool {
+  cancel := make(chan bool, 1)
+
+  go func () {
+    wait := make(chan bool)
+    go func () {
+      time.Sleep(delay)
+      wait <- true
+      close(wait)
+    }()
+
+    select {
+    case <-wait:
+      fn()
+    case <-cancel:
+    }
+  }()
+
+  return cancel
+}
 
 func selfDigest() (string, error) {
   var result []byte
@@ -73,21 +93,27 @@ func deployRuntime() (string, error) {
   err = os.Mkdir(dir, 0700)
   if os.IsExist(err) {
     return dir, nil
-  } else {
-    err = RestoreAssets(dir, "runtime")
-    if err != nil {
-      return "", err
-    }
-
-    return dir, nil
   }
+
+  cancel := delay(func () {
+    log.Println("Preparing runx (done once).")
+  }, 1250 * time.Millisecond)
+
+  err = RestoreAssets(dir, "runtime")
+  cancel <- true
+
+  if err != nil {
+    return "", err
+  }
+
+  return dir, nil
 }
 
 func main() {
   // We exclude the first argument since it's just the current process path.
   args := os.Args[1:]
   if len(args) == 1 && (args[0] == "-v" || args[0] == "--version") {
-    fmt.Println("runx", Version)
+    log.Println("runx", Version)
     return
   }
 
