@@ -120,8 +120,12 @@ begin
   manager = TaskManager.new
   manager.load(runfile)
 
+  dir = File.dirname(runfile)
+  $stderr.puts "[runx] In #{dir}."
+
   task_name = ARGV[0]
   if !task_name
+    $stderr.puts
     manager.show_help
   else
     # Clear ARGV to avoid interference with `gets`:
@@ -129,8 +133,6 @@ begin
     args = ARGV[1...ARGV.length]
     ARGV.clear
 
-    dir = File.dirname(runfile)
-    $stderr.puts "[runx] In #{dir}."
     manager.run_task(task_name, *args)
   end
 rescue TaskNotFoundError => e
