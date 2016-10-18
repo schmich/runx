@@ -14,6 +14,6 @@ del "%PACKAGE%"
 
 copy /y runx.rb runtime\lib\app\runx.rb
 go-bindata -nometadata runtime/...
-go build
+go build -ldflags "-w -s"
 
 endlocal

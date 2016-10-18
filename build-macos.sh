@@ -12,4 +12,4 @@ fi
 
 cp runx.rb runtime/lib/app/runx.rb
 go-bindata runtime/...
-go build
+go build -ldflags "-w -s"
