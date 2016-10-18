@@ -9,11 +9,8 @@ class Task
   end
 
   def run(manager, *args)
-    block_self = eval('self', @block.binding)
-    context = TaskRunContext.new(manager, block_self)
-
     Dir.chdir(@dir) do
-      context.instance_exec(*args, &@block)
+      @block.call(*args)
     end
   end
 
@@ -43,7 +40,7 @@ class TaskManager
 
   def load(file)
     dir = File.dirname(file)
-    context = TaskDefinitionContext.new(dir)
+    context = TaskContext.new(dir, self)
     context.instance_eval(File.read(file), file)
     @tasks.merge!(context.tasks)
   end
@@ -67,44 +64,39 @@ class TaskManager
   end
 end
 
-class TaskDefinitionContext
-  def initialize(dir)
+class TaskContext
+  def initialize(dir, manager)
     @tasks = {}
     @doc = nil
     @dir = dir
+    @manager = manager
   end
 
   def doc(doc)
     @doc = doc
   end
 
-  def run(name, &block)
-    key = name.to_s.downcase
+  def run(*args, &block)
+    if block_given?
+      # Define task.
+      name = args.first
+      key = name.to_s.downcase
 
-    if @tasks.include?(key)
-      raise DuplicateTaskError.new(name)
+      if @tasks.include?(key)
+        raise DuplicateTaskError.new(name)
+      end
+
+      @tasks[key] = Task.new(name.to_s, @doc, block, @dir)
+      @doc = nil
+    else
+      # Invoke task.
+      name = args.first
+      args = args.drop(1)
+      @manager.run_task(name, *args)
     end
-
-    @tasks[key] = Task.new(name.to_s, @doc, block, @dir)
-    @doc = nil
   end
 
   attr_accessor :tasks
-end
-
-class TaskRunContext
-  def initialize(manager, block_self)
-    @manager = manager
-    @self = block_self
-  end
-
-  def run(name, *args)
-    @manager.run_task(name, *args)
-  end
-
-  def method_missing(method, *args, &block)
-    @self.send(method, *args, &block)
-  end
 end
 
 def find_runfile
