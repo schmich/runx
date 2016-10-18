@@ -97,8 +97,8 @@ func deployRuntime() (string, error) {
   }
 
   cancel := delay(func () {
-    log.Println("Preparing runx (done once).")
-  }, 1250 * time.Millisecond)
+    log.Println("Preparing for first use.")
+  }, 500 * time.Millisecond)
 
   err = RestoreAssets(dir, "runtime")
   cancel <- true
