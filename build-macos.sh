@@ -12,4 +12,7 @@ fi
 
 cp runx.rb runtime/lib/app/runx.rb
 go-bindata runtime/...
-go build -ldflags "-w -s"
+
+version=`git tag | tail -n1`
+commit=`git rev-parse HEAD`
+go build -ldflags "-w -s -X main.version=$version -X main.commit=$commit" -o runx

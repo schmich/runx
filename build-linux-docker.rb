@@ -1,7 +1,6 @@
 #!env ruby
 
-match = File.read('main.go').match(/Version.*(\d+\.\d+\.\d+)/)
-version = match[1]
+version = `git tag`.lines.last.strip
 if !version
   puts 'Version not found.'
   exit 1

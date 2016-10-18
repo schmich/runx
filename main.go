@@ -14,7 +14,8 @@ import (
   "github.com/mitchellh/go-homedir"
 )
 
-const Version = "0.0.1"
+var version string
+var commit string
 
 func delay(fn func(), delay time.Duration) chan<- bool {
   cancel := make(chan bool, 1)
@@ -114,7 +115,7 @@ func main() {
   // We exclude the first argument since it's just the current process path.
   args := os.Args[1:]
   if len(args) == 1 && (args[0] == "-v" || args[0] == "--version") {
-    fmt.Fprintln(os.Stderr, "runx", Version)
+    fmt.Fprintln(os.Stderr, "runx", version, commit)
     return
   }
 
