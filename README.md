@@ -2,6 +2,8 @@
 
 Cross-platform, zero-install, Ruby-based task runner.
 
+`runx` enables you to script command-line-friendly tasks in Ruby that you can then run across platforms without needing to have Ruby installed.
+
 ## Setup
 
 [Download the zero-install binary](https://github.com/schmich/runx/releases) to a directory on your `PATH`.
@@ -31,6 +33,8 @@ Run `runx` to see available tasks:
 
 ```
 $ runx
+[runx] In /Users/schmich.
+
 Tasks:
   up                Start server.
   down              Stop server.
@@ -41,22 +45,67 @@ Run `runx <task>` to run a task:
 
 ```
 $ runx up
+[runx] In /Users/schmich.
 Building app
 Step 1 : FROM php:7-fpm-alpine
  ---> a0955c912431
 ...
 
 $ runx migrate:make create_some_table
+[runx] In /Users/schmich/test.
 Created Migration: 2016_10_06_133147_create_some_table
 Generating optimized class loader
 ```
 
-Parent directories are searched up to the root until a `Runfile` is found, so you can use `runx` in subdirectories, too.
+## Advanced
+
+When locating the `Runfile`, directories are searched up to the root until it's found, so you can invoke `runx` in project subdirectories.
+
+All tasks are run with the working directory set to the directory containing the `Runfile`.
+
+The bundled Ruby version is 2.1.5.
+
+Command-line arguments are passed to the task block:
+
+```ruby
+run :show do |*args|
+  require 'pp'
+  pp args
+end
+```
+
+```
+$ runx show abc 123 "quoted arg"
+[runx] In /Users/schmich.
+["abc", "123", "quoted arg"]
+```
+
+You can run tasks from other tasks:
+
+```ruby
+run :add do |x, y|
+  puts x.to_i + y.to_i
+end
+
+run :add5 do |x|
+  run :add, 5, x
+end
+```
+
+```
+$ runx add 10 20
+[runx] In /Users/schmich.
+30
+
+$ runx add5 10
+[runx] In /Users/schmich.
+15
+```
 
 ## How It Works
 
 The Go-built runx binary contains an OS-specific version of [Phusion's Traveling Ruby](https://github.com/phusion/traveling-ruby) runtime, embedded with [Jim Teeuwen's go-bindata](https://github.com/jteeuwen/go-bindata).
-At runtime, the Ruby distribution is extracted to `~/.runx/<hash>`, the runx binary spawns `ruby`, which loads the runx Ruby library, which loads the `Runfile` and runs tasks.
+At runtime, the Ruby distribution is extracted to `~/.runx/<hash>`, the runx binary spawns `ruby`, which then loads the runx Ruby library, which finally loads the `Runfile` and runs tasks.
 
 ## License
 
