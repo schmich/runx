@@ -54,6 +54,10 @@ class TaskManager
     end
   end
 
+  def task_defined?(name)
+    !@tasks[name.to_s.downcase].nil?
+  end
+
   def run_task(name, *args)
     task = @tasks[name.to_s.downcase]
     if task.nil?
@@ -124,7 +128,11 @@ begin
   $stderr.puts "[runx] In #{dir}."
 
   task_name = ARGV[0]
-  if !task_name
+
+  is_help = ['--help', 'help'].include?(task_name)
+  show_help = !task_name || (is_help && !manager.task_defined?(task_name))
+
+  if show_help
     $stderr.puts
     manager.show_help
   else
