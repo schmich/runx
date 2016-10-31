@@ -2,20 +2,18 @@ package main
 
 import (
   "fmt"
-  "io"
   "io/ioutil"
   "path"
   "time"
   "os"
   "os/exec"
-  "hash/fnv"
-  "encoding/hex"
-  "github.com/kardianos/osext"
+  "errors"
   "github.com/mitchellh/go-homedir"
 )
 
 var version string
 var commit string
+var payloadHash string
 
 func delay(fn func(), delay time.Duration) chan<- bool {
   cancel := make(chan bool, 1)
@@ -38,34 +36,9 @@ func delay(fn func(), delay time.Duration) chan<- bool {
   return cancel
 }
 
-func selfDigest() (string, error) {
-  var result []byte
-  fileName, err := osext.Executable()
-  if err != nil {
-    return "", err
-  }
-
-  file, err := os.Open(fileName)
-  if err != nil {
-    return "", err
-  }
-  defer file.Close()
-
-  hash := fnv.New64a()
-  if _, err := io.Copy(hash, file); err != nil {
-    return "", err
-  }
-
-  result = hash.Sum(result)
-  digest := hex.EncodeToString(result)
-
-  return digest, nil
-}
-
 func deployRuntime() (string, error) {
-  digest, err := selfDigest()
-  if err != nil {
-    return "", err
+  if len(payloadHash) == 0 {
+    return "", errors.New("Invalid payload hash.")
   }
 
   home, err := homedir.Dir()
@@ -85,13 +58,13 @@ func deployRuntime() (string, error) {
   }
 
   for _, file := range files {
-    if file.IsDir() && file.Name() != digest {
+    if file.IsDir() && file.Name() != payloadHash {
       remove := path.Join(runxHome, file.Name())
       os.RemoveAll(remove)
     }
   }
 
-  dir := path.Join(runxHome, digest)
+  dir := path.Join(runxHome, payloadHash)
   err = os.Mkdir(dir, 0700)
   if os.IsExist(err) {
     return dir, nil

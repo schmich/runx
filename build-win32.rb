@@ -1,4 +1,5 @@
 require 'fileutils'
+require 'digest'
 
 def run(command)
   puts command
@@ -21,4 +22,5 @@ run('go-bindata -nometadata runtime/...')
 
 version = `git tag`.lines.last.strip
 commit = `git rev-parse HEAD`
-run("go build -ldflags \"-w -s -X main.version=#{version} -X main.commit=#{commit}\"")
+payloadHash = Digest::SHA256.file('bindata.go')
+run("go build -ldflags \"-w -s -X main.version=#{version} -X main.commit=#{commit} -X main.payloadHash=#{payloadHash}\"")

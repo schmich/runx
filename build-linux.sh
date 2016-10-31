@@ -15,4 +15,5 @@ go-bindata runtime/...
 
 version=`git tag | tail -n1`
 commit=`git rev-parse HEAD`
-go build -ldflags "-w -s -X main.version=$version -X main.commit=$commit" -o runx
+payloadHash=`shasum -a 256 bindata.go | awk '{ print $1 }'`
+go build -ldflags "-w -s -X main.version=$version -X main.commit=$commit -X main.payloadHash=$payloadHash" -o runx
