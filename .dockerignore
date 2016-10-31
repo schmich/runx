@@ -1,1 +1,4 @@
 runtime/
+bindata.go
+runx
+runx-*

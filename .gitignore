@@ -1,5 +1,6 @@
 bindata.go
 runx.exe
 runx
+runx-*
 runtime/
 Runfile
