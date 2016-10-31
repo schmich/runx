@@ -22,5 +22,5 @@ run('go-bindata -nometadata runtime/...')
 
 version = `git tag`.lines.last.strip
 commit = `git rev-parse HEAD`
-payloadHash = Digest::SHA256.file('bindata.go')
-run("go build -ldflags \"-w -s -X main.version=#{version} -X main.commit=#{commit} -X main.payloadHash=#{payloadHash}\"")
+payloadHash = Digest::SHA256.file('bindata.go').hexdigest[0...8]
+run("go build -ldflags \"-w -s -X main.version=#{version} -X main.commit=#{commit} -X main.payloadDir=#{version}.#{payloadHash}\"")

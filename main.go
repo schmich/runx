@@ -13,7 +13,7 @@ import (
 
 var version string
 var commit string
-var payloadHash string
+var payloadDir string
 
 func delay(fn func(), delay time.Duration) chan<- bool {
   cancel := make(chan bool, 1)
@@ -37,8 +37,8 @@ func delay(fn func(), delay time.Duration) chan<- bool {
 }
 
 func deployRuntime() (string, error) {
-  if len(payloadHash) == 0 {
-    return "", errors.New("Invalid payload hash.")
+  if len(payloadDir) == 0 {
+    return "", errors.New("Invalid payload directory.")
   }
 
   home, err := homedir.Dir()
@@ -58,13 +58,13 @@ func deployRuntime() (string, error) {
   }
 
   for _, file := range files {
-    if file.IsDir() && file.Name() != payloadHash {
+    if file.IsDir() && file.Name() != payloadDir {
       remove := path.Join(runxHome, file.Name())
       os.RemoveAll(remove)
     }
   }
 
-  dir := path.Join(runxHome, payloadHash)
+  dir := path.Join(runxHome, payloadDir)
   err = os.Mkdir(dir, 0700)
   if os.IsExist(err) {
     return dir, nil
