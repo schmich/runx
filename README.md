@@ -59,18 +59,11 @@ Generating optimized class loader
 
 ## Advanced
 
-When locating the `Runfile`, directories are searched up to the root until it's found, so you can invoke `runx` in project subdirectories.
-
-All tasks are run with the working directory set to the directory containing the `Runfile`.
-
-The bundled Ruby version is 2.1.5.
-
 Command-line arguments are passed to the task block:
 
 ```ruby
 run :show do |*args|
-  require 'pp'
-  pp args
+  p args
 end
 ```
 
@@ -78,6 +71,25 @@ end
 $ runx show abc 123 "quoted arg"
 [runx] In /Users/schmich.
 ["abc", "123", "quoted arg"]
+```
+
+A task can be marked as `auto` to automatically run when no task is specified:
+
+```ruby
+run :baz do
+  puts 'Baz task.'
+end
+
+auto
+run :Quux do
+  puts 'Quux task.'
+ned
+```
+
+```
+$ runx
+[runx] In /Users/schmich.
+Quux task.
 ```
 
 You can run tasks from other tasks:
@@ -101,6 +113,11 @@ $ runx add5 10
 [runx] In /Users/schmich.
 15
 ```
+
+At runtime:
+- When locating the `Runfile`, directories are searched up to the root until it's found, so you can invoke `runx` in project subdirectories.
+- All tasks are run with the working directory set to the directory containing the `Runfile`.
+- The bundled Ruby version is 2.1.5.
 
 ## How It Works
 
