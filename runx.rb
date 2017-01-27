@@ -1,17 +1,22 @@
 require 'pathname'
 
 class Task
-  def initialize(name, doc, block, dir)
+  def initialize(name, doc, block, dir, auto)
     @name = name
     @doc = doc
     @block = block
     @dir = dir
+    @auto = auto
   end
 
   def run(manager, *args)
     Dir.chdir(@dir) do
       @block.call(*args)
     end
+  end
+
+  def auto?
+    @auto
   end
 
   attr_accessor :name, :doc
@@ -33,6 +38,15 @@ class DuplicateTaskError < StandardError
   attr_reader :name
 end
 
+class MultipleAutoError < StandardError
+  def initialize(auto, current)
+    @auto = auto
+    @current = current
+  end
+
+  attr_reader :auto, :current
+end
+
 class TaskManager
   def initialize
     @tasks = {}
@@ -47,11 +61,22 @@ class TaskManager
 
   def show_help
     $stderr.puts 'Tasks:'
-    width = @tasks.map { |name, task| name.length }.max
-    @tasks.each do |name, task|
+
+    # Format to show which task is the auto task, if any.
+    tasks = Hash[@tasks.map { |name, task|
+      [name + (task.auto? ? '*' : ''), task]
+    }]
+
+    width = tasks.keys.map(&:length).max
+    tasks.each do |name, task|
       space = ' ' * (width - name.length + 6)
-      $stderr.puts "  #{task.name}#{space}#{task.doc}"
+      $stderr.puts "  #{name}#{space}#{task.doc}"
     end
+  end
+
+  def auto_task
+    task = @tasks.values.find(&:auto?)
+    task.name if task
   end
 
   def task_defined?(name)
@@ -73,7 +98,13 @@ class TaskContext
     @tasks = {}
     @doc = nil
     @dir = dir
+    @auto = false
+    @auto_task = nil
     @manager = manager
+  end
+
+  def auto
+    @auto = true
   end
 
   def doc(doc)
@@ -90,8 +121,19 @@ class TaskContext
         raise DuplicateTaskError.new(name)
       end
 
-      @tasks[key] = Task.new(name.to_s, @doc, block, @dir)
+      task = Task.new(name.to_s, @doc, block, @dir, @auto)
+      @tasks[key] = task
+
+      if @auto
+        if @auto_task
+          raise MultipleAutoError.new(@auto_task, task)
+        else
+          @auto_task = task
+        end
+      end
+
       @doc = nil
+      @auto = false
     else
       # Invoke task.
       name = args.first
@@ -158,9 +200,9 @@ begin
   dir = File.dirname(runfile)
   $stderr.puts "[runx] In #{dir}."
 
-  task_name = ARGV[0]
+  task_name = ARGV[0] || manager.auto_task
 
-  is_help = ['--help', 'help'].include?(task_name)
+  is_help = ['-h', '--help', 'help'].include?(task_name)
   show_help = !task_name || (is_help && !manager.task_defined?(task_name))
 
   if show_help
@@ -179,6 +221,9 @@ rescue TaskNotFoundError => e
   exit 1
 rescue DuplicateTaskError => e
   $stderr.puts "[runx] Task '#{e.name}' is already defined."
+  exit 1
+rescue MultipleAutoError => e
+  $stderr.puts "[runx] Task '#{e.current.name}' cannot be auto, '#{e.auto.name}' is already auto."
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
