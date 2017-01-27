@@ -103,6 +103,34 @@ class TaskContext
   attr_accessor :tasks
 end
 
+def restore_env
+  map = {
+    'LD_LIBRARY_PATH' => 'RUNX_LD_LIBRARY_PATH',
+    'DYLD_LIBRARY_PATH' => 'RUNX_DYLD_LIBRARY_PATH',
+    'TERMINFO' => 'RUNX_TERMINFO',
+    'SSL_CERT_DIR' => 'RUNX_SSL_CERT_DIR',
+    'SSL_CERT_FILE' => 'RUNX_SSL_CERT_FILE',
+    'RUBYOPT' => 'RUNX_RUBYOPT',
+    'RUBYLIB' => 'RUNX_RUBYLIB',
+    'DYLD_LIBRARY_PATH' => 'RUNX_DYLD_LIBRARY_PATH',
+    'GEM_HOME' => 'RUNX_GEM_HOME',
+    'GEM_PATH' => 'RUNX_GEM_PATH'
+  }
+
+  map.each do |real, temp|
+    orig = ENV[temp]
+    if orig.nil? || orig.strip.empty?
+      ENV.delete(real)
+    else
+      ENV[real] = orig.strip
+    end
+  end
+
+  map.values.each do |temp|
+    ENV.delete(temp)
+  end
+end
+
 def find_runfile
   Pathname.getwd.ascend do |path|
     runfile = File.join(path.to_s, 'Runfile')
@@ -113,6 +141,9 @@ def find_runfile
 
   return nil
 end
+
+# Restore environment to match original.
+restore_env
 
 runfile = find_runfile
 if runfile.nil?

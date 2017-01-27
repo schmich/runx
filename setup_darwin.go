@@ -13,12 +13,14 @@ func setupRuntime(dir string) string {
   version := "2.1.0"
   arch := "x86_64-darwin13.0"
 
-  os.Setenv("ORIG_DYLD_LIBRARY_PATH", os.Getenv("LD_LIBRARY_PATH"))
-  os.Setenv("ORIG_TERMINFO", os.Getenv("TERMINFO"))
-  os.Setenv("ORIG_SSL_CERT_DIR", os.Getenv("SSL_CERT_DIR"))
-  os.Setenv("ORIG_SSL_CERT_FILE", os.Getenv("SSL_CERT_FILE"))
-  os.Setenv("ORIG_RUBYOPT", os.Getenv("RUBYOPT"))
-  os.Setenv("ORIG_RUBYLIB", os.Getenv("RUBYLIB"))
+  os.Setenv("RUNX_DYLD_LIBRARY_PATH", os.Getenv("DYLD_LIBRARY_PATH"))
+  os.Setenv("RUNX_TERMINFO", os.Getenv("TERMINFO"))
+  os.Setenv("RUNX_SSL_CERT_DIR", os.Getenv("SSL_CERT_DIR"))
+  os.Setenv("RUNX_SSL_CERT_FILE", os.Getenv("SSL_CERT_FILE"))
+  os.Setenv("RUNX_RUBYOPT", os.Getenv("RUBYOPT"))
+  os.Setenv("RUNX_RUBYLIB", os.Getenv("RUBYLIB"))
+  os.Setenv("RUNX_GEM_HOME", os.Getenv("GEM_HOME"))
+  os.Setenv("RUNX_GEM_PATH", os.Getenv("GEM_PATH"))
   os.Unsetenv("DYLD_LIBRARY_PATH")
   os.Setenv("TERMINFO", "/usr/share/terminfo")
   os.Unsetenv("SSL_CERT_DIR")

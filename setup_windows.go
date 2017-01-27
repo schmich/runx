@@ -13,6 +13,8 @@ func setupRuntime(dir string) string {
   version := "2.1.0"
   arch := "i386-mingw32"
 
+  os.Setenv("RUNX_RUBYLIB", os.Getenv("RUBYLIB"))
+
   rubyLib := strings.Join([]string{
     path.Join(root, "lib", "ruby", "site_ruby", version),
     path.Join(root, "lib", "ruby", "site_ruby", version, arch),
