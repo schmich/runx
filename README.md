@@ -81,9 +81,9 @@ run :baz do
 end
 
 auto
-run :Quux do
+run :quux do
   puts 'Quux task.'
-ned
+end
 ```
 
 ```
