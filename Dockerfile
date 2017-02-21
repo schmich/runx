@@ -1,4 +1,4 @@
-FROM golang:1-wheezy
+FROM golang:latest
 MAINTAINER Chris Schmich <schmch@gmail.com>
 RUN go get github.com/mitchellh/go-homedir \
  && go get github.com/jteeuwen/go-bindata/...
