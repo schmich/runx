@@ -9,10 +9,10 @@ if !version
 end
 
 target = "#{project}-linux-x64-#{version}"
-system("docker build -t #{project} .")
-system("docker run -it #{project}")
+system("docker build -t #{project} .") || fail
+system("docker run -it #{project}") || fail
 id = `docker ps -l -q`.strip
-system("docker cp #{id}:/src/#{project} ./#{target}")
-system("docker rm #{id}")
-system("docker run -it --rm -v #{Dir.pwd}/#{target}:/bin/#{project} golang:latest bash")
-system("docker rmi #{project}:latest")
+system("docker cp #{id}:/src/#{project} ./#{target}") || fail
+system("docker rm #{id}") || fail
+system("docker run -it --rm -v #{Dir.pwd}/#{target}:/bin/#{project} golang:latest bash") || fail
+system("docker rmi #{project}:latest") || fail
