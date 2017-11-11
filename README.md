@@ -2,7 +2,7 @@
 
 Cross-platform, zero-install, Ruby-based task runner.
 
-`runx` enables you to script command-line-friendly tasks in Ruby that you can then run across platforms without needing to have Ruby installed.
+`runx` enables you to script command-line-friendly tasks in Ruby that you can run across platforms without requiring a Ruby installation.
 
 ## Setup
 
@@ -10,7 +10,7 @@ Cross-platform, zero-install, Ruby-based task runner.
 
 ## Usage
 
-Create a `Runfile` with your tasks:
+Create a `Runfile` or `Runfile.rb` with your tasks:
 
 ```ruby
 doc 'Start server.'
@@ -59,6 +59,8 @@ Generating optimized class loader
 
 ## Advanced
 
+The bundled Ruby version is 2.1.5.
+
 Command-line arguments are passed to the task block:
 
 ```ruby
@@ -92,6 +94,18 @@ $ runx
 Quux task.
 ```
 
+When locating the `Runfile`, directories are searched up to the filesystem root until it's found, so you can invoke `runx` in project subdirectories.
+
+By default, the working directory is set to the `Runfile` directory unless the `dir` attribute is used. `dir :pwd` sets the working directory to the directory where `runx` was invoked:
+
+```ruby
+dir :pwd
+run :json do |file|
+  require 'json'
+  puts JSON.pretty_generate(File.read(file))
+end
+```
+
 You can run tasks from other tasks:
 
 ```ruby
@@ -114,15 +128,9 @@ $ runx add5 10
 15
 ```
 
-At runtime:
-- When locating the `Runfile`, directories are searched up to the root until it's found, so you can invoke `runx` in project subdirectories.
-- All tasks are run with the working directory set to the directory containing the `Runfile`.
-- The bundled Ruby version is 2.1.5.
-
 ## How It Works
 
-The Go-built runx binary contains an OS-specific version of [Phusion's Traveling Ruby](https://github.com/phusion/traveling-ruby) runtime, embedded with [Jim Teeuwen's go-bindata](https://github.com/jteeuwen/go-bindata).
-At runtime, the Ruby distribution is extracted to `~/.runx/<hash>`, the runx binary spawns `ruby`, which then loads the runx Ruby library, which finally loads the `Runfile` and runs tasks.
+The Go-built runx binary contains an OS-specific version of [Phusion's Traveling Ruby](https://github.com/phusion/traveling-ruby) runtime, embedded with [Jim Teeuwen's go-bindata](https://github.com/jteeuwen/go-bindata). At runtime, the Ruby distribution is extracted to `~/.runx/<hash>`, the runx binary spawns `ruby`, which then loads the runx Ruby library, which finally loads the `Runfile` and runs tasks.
 
 ## License
 
