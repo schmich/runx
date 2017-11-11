@@ -1,10 +1,10 @@
 require 'pathname'
 
 class Task
-  def initialize(name, doc, block, dir, auto)
+  def initialize(name, block, doc, dir, auto)
     @name = name
-    @doc = doc
     @block = block
+    @doc = doc
     @dir = dir
     @auto = auto
   end
@@ -12,6 +12,7 @@ class Task
   def run(manager, *args)
     raise DirNotFoundError.new(@dir, self) if !File.exist?(@dir)
     Dir.chdir(@dir) do
+      $stderr.puts "[runx] In #{@dir}."
       @block.call(*args)
     end
   end
@@ -113,10 +114,7 @@ class TaskManager
 
   def run_task(name, *args)
     task = @tasks[name.to_s.downcase]
-    if task.nil?
-      raise TaskNotFoundError.new(name)
-    end
-
+    raise TaskNotFoundError.new(name) if task.nil?
     task.run(self, *args)
   end
 
@@ -181,7 +179,7 @@ class TaskContext
         raise DuplicateTaskError.new(name)
       end
 
-      task = Task.new(name.to_s, @doc, block, @task_dir || @root_dir, @auto)
+      task = Task.new(name.to_s, block, @doc, @task_dir || @root_dir, @auto)
       @tasks[key] = task
 
       if @auto
@@ -263,15 +261,13 @@ begin
   manager = TaskManager.new
   manager.load(runfile)
 
-  dir = File.dirname(runfile)
-  $stderr.puts "[runx] In #{dir}."
-
   task_name = ARGV[0] || manager.auto_task
 
   is_help = ['-h', '--help', 'help'].include?(task_name)
   show_help = !task_name || (is_help && !manager.task_defined?(task_name))
 
   if show_help
+    $stderr.puts "[runx] In #{File.dirname(runfile)}."
     $stderr.puts
     manager.show_help
   else
