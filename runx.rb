@@ -10,6 +10,7 @@ class Task
   end
 
   def run(manager, *args)
+    raise DirNotFoundError.new(@dir, self) if !File.exist?(@dir)
     Dir.chdir(@dir) do
       @block.call(*args)
     end
@@ -28,6 +29,15 @@ class TaskNotFoundError < StandardError
   end
 
   attr_reader :name
+end
+
+class DirNotFoundError < StandardError
+  def initialize(dir, task)
+    @dir = dir
+    @task = task
+  end
+
+  attr_reader :dir, :task
 end
 
 class DuplicateTaskError < StandardError
@@ -65,10 +75,7 @@ class TaskManager
   end
 
   def load(file)
-    dir = File.dirname(file)
-    context = TaskContext.new(dir, self)
-    context.instance_eval(File.read(file), file)
-    @tasks.merge!(context.tasks)
+    @tasks.merge!(load_tasks(file))
     raise NoTasksDefinedError if @tasks.empty?
   end
 
@@ -104,20 +111,50 @@ class TaskManager
 
     task.run(self, *args)
   end
+
+  private
+
+  def load_tasks(file)
+    context = TaskContext.new(File.dirname(file), self)
+    InstanceBinding.for(context).eval(File.read(file), file)
+    context.tasks
+  end
+end
+
+module InstanceBinding
+  def self.for(object)
+    @object = object
+    create
+  end
+
+  def self.create
+    @object.instance_eval { binding }
+  end
 end
 
 class TaskContext
-  def initialize(dir, manager)
+  def initialize(root_dir, manager)
     @tasks = {}
     @doc = nil
-    @dir = dir
     @auto = false
     @auto_task = nil
+    @task_dir = nil
+    @root_dir = root_dir
     @manager = manager
   end
 
   def auto
     @auto = true
+  end
+
+  def dir(base, relative = '.')
+    path = case base
+      when :pwd
+        Dir.pwd
+      when :root
+        @root_dir
+    end
+    @task_dir = File.absolute_path(File.join(path, relative.to_s))
   end
 
   def doc(doc)
@@ -134,7 +171,7 @@ class TaskContext
         raise DuplicateTaskError.new(name)
       end
 
-      task = Task.new(name.to_s, @doc, block, @dir, @auto)
+      task = Task.new(name.to_s, @doc, block, @task_dir || @root_dir, @auto)
       @tasks[key] = task
 
       if @auto
@@ -145,6 +182,7 @@ class TaskContext
         end
       end
 
+      @task_dir = nil
       @doc = nil
       @auto = false
     else
@@ -248,6 +286,9 @@ rescue DuplicateTaskError => e
   exit 1
 rescue MultipleAutoError => e
   $stderr.puts "[runx] Error: Task '#{e.current.name}' cannot be auto, '#{e.auto.name}' is already auto."
+  exit 1
+rescue DirNotFoundError => e
+  $stderr.puts "[runx] Error: Task #{e.task.name}: Directory not found: #{e.dir}."
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
