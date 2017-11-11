@@ -56,6 +56,9 @@ class MultipleRunfileError < StandardError
   attr_reader :path, :files
 end
 
+class NoTasksDefinedError < StandardError
+end
+
 class TaskManager
   def initialize
     @tasks = {}
@@ -66,6 +69,7 @@ class TaskManager
     context = TaskContext.new(dir, self)
     context.instance_eval(File.read(file), file)
     @tasks.merge!(context.tasks)
+    raise NoTasksDefinedError if @tasks.empty?
   end
 
   def show_help
@@ -233,6 +237,9 @@ begin
   end
 rescue MultipleRunfileError => e
   $stderr.puts "[runx] Error: Multiple Runfiles found in #{e.path}: #{e.files.join(', ')}."
+  exit 1
+rescue NoTasksDefinedError => e
+  $stderr.puts '[runx] Error: No tasks defined. See https://github.com/schmich/runx#usage.'
   exit 1
 rescue TaskNotFoundError => e
   $stderr.puts "[runx] Error: Task '#{e.name}' not found."
