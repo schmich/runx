@@ -69,6 +69,14 @@ end
 class NoTasksDefinedError < StandardError
 end
 
+class DirAttributeError < StandardError
+  def initialize(base)
+    @base = base
+  end
+
+  attr_reader :base
+end
+
 class TaskManager
   def initialize
     @tasks = {}
@@ -153,6 +161,8 @@ class TaskContext
         Dir.pwd
       when :root
         @root_dir
+      else
+        raise DirAttributeError.new(base)
     end
     @task_dir = File.absolute_path(File.join(path, relative.to_s))
   end
@@ -289,6 +299,9 @@ rescue MultipleAutoError => e
   exit 1
 rescue DirNotFoundError => e
   $stderr.puts "[runx] Error: Task #{e.task.name}: Directory not found: #{e.dir}."
+  exit 1
+rescue DirAttributeError => e
+  $stderr.puts "[runx] Error: Invalid attribute 'dir :#{e.base}'. Expected :root or :pwd."
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
