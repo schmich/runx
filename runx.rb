@@ -122,7 +122,8 @@ class TaskManager
 
   def load_tasks(file)
     context = TaskContext.new(File.dirname(file), self)
-    InstanceBinding.for(context).eval(File.read(file), file)
+    proxy = TaskContextProxy.new(context)
+    InstanceBinding.for(proxy).eval(File.read(file), file)
     context.tasks
   end
 end
@@ -135,6 +136,28 @@ module InstanceBinding
 
   def self.create
     @object.instance_eval { binding }
+  end
+end
+
+class TaskContextProxy
+  def initialize(real)
+    @_ = real
+  end
+
+  def auto
+    @_.auto
+  end
+
+  def dir(base, relative = '.')
+    @_.dir(base, relative)
+  end
+
+  def doc(doc)
+    @_.doc(doc)
+  end
+
+  def run(*args, &block)
+    @_.run(*args, &block)
   end
 end
 
