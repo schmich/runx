@@ -47,6 +47,15 @@ class MultipleAutoError < StandardError
   attr_reader :auto, :current
 end
 
+class MultipleRunfileError < StandardError
+  def initialize(path, files)
+    @path = path
+    @files = files.map { |file| File.basename(file) }
+  end
+
+  attr_reader :path, :files
+end
+
 class TaskManager
   def initialize
     @tasks = {}
@@ -175,9 +184,15 @@ end
 
 def find_runfile
   Pathname.getwd.ascend do |path|
-    runfile = File.join(path.to_s, 'Runfile')
-    if File.exist?(runfile)
-      return runfile.gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+    files = ['Runfile', 'Runfile.rb'].map { |file|
+      File.join(path.to_s, file)
+    }.select { |file|
+      File.exist?(file)
+    }
+    if files.length == 1
+      return files.first.gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+    elsif files.length == 2
+      raise MultipleRunfileError.new(path, files)
     end
   end
 
@@ -187,13 +202,13 @@ end
 # Restore environment to match original.
 restore_env
 
-runfile = find_runfile
-if runfile.nil?
-  $stderr.puts '[runx] No Runfile found.'
-  exit 1
-end
-
 begin
+  runfile = find_runfile
+  if runfile.nil?
+    $stderr.puts '[runx] Error: No Runfile or Runfile.rb found.'
+    exit 1
+  end
+
   manager = TaskManager.new
   manager.load(runfile)
 
@@ -216,14 +231,17 @@ begin
 
     manager.run_task(task_name, *args)
   end
+rescue MultipleRunfileError => e
+  $stderr.puts "[runx] Error: Multiple Runfiles found in #{e.path}: #{e.files.join(', ')}."
+  exit 1
 rescue TaskNotFoundError => e
-  $stderr.puts "[runx] Task '#{e.name}' not found."
+  $stderr.puts "[runx] Error: Task '#{e.name}' not found."
   exit 1
 rescue DuplicateTaskError => e
-  $stderr.puts "[runx] Task '#{e.name}' is already defined."
+  $stderr.puts "[runx] Error: Task '#{e.name}' is already defined."
   exit 1
 rescue MultipleAutoError => e
-  $stderr.puts "[runx] Task '#{e.current.name}' cannot be auto, '#{e.auto.name}' is already auto."
+  $stderr.puts "[runx] Error: Task '#{e.current.name}' cannot be auto, '#{e.auto.name}' is already auto."
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
