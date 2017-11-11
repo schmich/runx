@@ -167,7 +167,6 @@ def restore_env
     'SSL_CERT_FILE' => 'RUNX_SSL_CERT_FILE',
     'RUBYOPT' => 'RUNX_RUBYOPT',
     'RUBYLIB' => 'RUNX_RUBYLIB',
-    'DYLD_LIBRARY_PATH' => 'RUNX_DYLD_LIBRARY_PATH',
     'GEM_HOME' => 'RUNX_GEM_HOME',
     'GEM_PATH' => 'RUNX_GEM_PATH'
   }
