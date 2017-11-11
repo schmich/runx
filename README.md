@@ -102,7 +102,7 @@ By default, the working directory is set to the `Runfile` directory unless the `
 dir :pwd
 run :json do |file|
   require 'json'
-  puts JSON.pretty_generate(File.read(file))
+  puts JSON.pretty_generate(JSON.parse(File.read(file)))
 end
 ```
 
