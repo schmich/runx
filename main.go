@@ -7,6 +7,7 @@ import (
   "time"
   "os"
   "os/exec"
+  "os/signal"
   "errors"
   "github.com/mitchellh/go-homedir"
 )
@@ -101,6 +102,11 @@ func main() {
   ruby := setupRuntime(dir)
   script := path.Join(dir, "runtime", "lib", "app", "runx.rb")
   args = append([]string{script}, args...)
+
+  // Disable all default signal behavior (e.g. SIGINT)
+  // in case child process has specific signal handling.
+  signals := make(chan os.Signal, 1)
+  signal.Notify(signals)
 
   cmd := exec.Command(ruby, args...)
   cmd.Stdout = os.Stdout
