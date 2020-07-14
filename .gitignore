@@ -4,3 +4,4 @@ runx
 runx-*
 runtime/
 Runfile
+.vagrant/
