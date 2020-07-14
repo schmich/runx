@@ -103,7 +103,6 @@ func main() {
 	dir, err := deployRuntime()
 	if err != nil {
 		log.Fatal(err)
-		return
 	}
 
 	ruby := setupRuntime(dir)
@@ -119,5 +118,15 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-	cmd.Run()
+
+	if err = cmd.Run(); err != nil {
+		// If we have an error that isn't an exec.ExitError, then there
+		// was an error when launching the Ruby process.
+		if _, ok := err.(*exec.ExitError); !ok {
+			log.Fatal(err)
+		}
+	}
+
+	// Pass along Ruby's exit code.
+	os.Exit(cmd.ProcessState.ExitCode())
 }
