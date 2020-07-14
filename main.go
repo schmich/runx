@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/mitchellh/go-homedir"
 	"io/ioutil"
+	logger "log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,6 +16,12 @@ import (
 var version string
 var commit string
 var payloadDir string
+
+var log = createLogger()
+
+func createLogger() *logger.Logger {
+	return logger.New(os.Stderr, "[runx] ", 0)
+}
 
 func delay(fn func(), delay time.Duration) chan<- bool {
 	cancel := make(chan bool, 1)
