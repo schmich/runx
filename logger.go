@@ -6,5 +6,5 @@ import "os"
 var log = createLogger()
 
 func createLogger() *logger.Logger {
-  return logger.New(os.Stderr, "[runx] ", 0)
+	return logger.New(os.Stderr, "[runx] ", 0)
 }
