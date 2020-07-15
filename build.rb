@@ -4,7 +4,8 @@ require 'tmpdir'
 require 'set'
 
 def build(platform, package)
-  puts "Build for #{platform}."
+  source_dir = Dir.pwd
+  puts "Build for #{platform} in #{source_dir}."
 
   version = `git tag`.lines.last.strip
   if !version
@@ -12,21 +13,34 @@ def build(platform, package)
     exit 1
   end
 
-  runtime_dir = "runtimes/#{platform}/runtime"
-  if !Dir.exist?(runtime_dir)
-    FileUtils.mkdir_p("#{runtime_dir}/lib/app")
+  if !Dir.exist?('packages')
+    FileUtils.mkdir_p('packages')
+  end
 
-    Dir.mktmpdir do |tmp|
-      tmp = File.join(tmp, 'ruby')
-      FileUtils.mkdir_p(tmp)
-      system("curl -L --fail \"https://d6r77u77i8pq3.cloudfront.net/releases/#{package}\" | tar -zxv -C #{tmp}") || fail
-      system("cp -R --dereference #{tmp} #{runtime_dir}/lib") || fail
-    end
+  platform_package = File.expand_path("packages/#{package}")
+  if !File.exist?(platform_package)
+    puts "Download Ruby #{platform} package."
+    system("curl -L --fail -o \"#{platform_package}\" \"https://d6r77u77i8pq3.cloudfront.net/releases/#{package}\"") || fail
   end
 
   puts 'Create bindata bundle.'
-  FileUtils.copy('runx.rb', "#{runtime_dir}/lib/app/runx.rb")
-  system("cd runtimes/#{platform} && go-bindata -o ../../bindata.go runtime/...") || fail
+  Dir.mktmpdir do |tmp|
+    runtime_dir = File.join(tmp, 'runtime')
+    app_dir = File.join(runtime_dir, 'lib', 'app')
+    ruby_dir = File.join(runtime_dir, 'lib', 'ruby')
+    FileUtils.mkdir_p(app_dir)
+    FileUtils.mkdir_p(ruby_dir)
+
+    system("tar -zxv -C \"#{ruby_dir}\" -f \"#{platform_package}\"")
+
+    FileUtils.copy(File.join(source_dir, 'runx.rb'), app_dir)
+
+    puts 'Create bindata bundle.'
+    Dir.chdir(tmp) do
+      bindata_filename = File.join(source_dir, 'bindata.go')
+      system("go-bindata -o \"#{bindata_filename}\" runtime/...") || fail
+    end
+  end
 
   commit = `git rev-parse HEAD`.strip
   payload_hash = Digest::SHA256.file('bindata.go').hexdigest[0...8]

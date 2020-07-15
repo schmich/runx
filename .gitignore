@@ -2,6 +2,6 @@ bindata.go
 runx.exe
 runx
 runx-*
-runtime/
+packages/
 Runfile
 .vagrant/
