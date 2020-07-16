@@ -1,3 +1,6 @@
+$:.unshift(File.join(__dir__, 'lib'))
+
+require 'colorize'
 require 'io/console'
 require 'pathname'
 require 'set'
@@ -9,26 +12,26 @@ class RunxError < StandardError
 end
 
 class Task
-  def initialize(name, block, description, dir, source)
+  def initialize(name, method, description, dir, source)
     @name = name
-    @block = block
+    @method = method
     @description = description
     @dir = dir
     @source = source
   end
 
-  def run(*args)
+  def run(*args, &block)
     if !Dir.exist?(@dir)
       raise RunxError.new("task #{@name}: directory not found: #{@dir}")
     end
 
     Dir.chdir(@dir) do
       $stderr.puts "[runx] in #{@dir}"
-      @block.call(*args)
+      @method.call(*args, &block)
     end
   end
 
-  attr_accessor :name, :description, :source
+  attr_accessor :name, :method, :description, :source
 end
 
 class SourceLocation
@@ -120,8 +123,17 @@ class TaskManager
     _, console_width = IO.console.winsize
     console_width -= 1
 
-    task_width = @tasks.values.map(&:name).map(&:length).max
-    task_pad = 6
+    parameters = Hash[@tasks.values.map { |task|
+      [task, format_parameters(task.method.parameters)]
+    }]
+
+    make_title = proc { |task, colorize|
+      name = colorize ? task.name.cyan : task.name
+      [name, parameters[task]].reject(&:empty?).join(' ')
+    }
+
+    task_width = @tasks.values.map { |task| make_title.call(task, false).length }.max
+    task_pad = 5
 
     description_width = console_width - task_leader.length - task_width - task_pad
     description_leader = ' ' * (task_leader.length + task_width + task_pad)
@@ -136,8 +148,8 @@ class TaskManager
       end
 
       tasks.each do |task|
-        space = ' ' * (task_width - task.name.length + task_pad)
-        $stderr.print "#{task_leader}#{task.name}#{space}"
+        space = ' ' * (task_width - (make_title.call(task, false).length) + task_pad)
+        $stderr.print "#{task_leader}#{make_title.call(task, true)}#{space}"
 
         description_lines = word_wrap(task.description, description_width)
         0.upto(description_lines.count - 1) do |i|
@@ -152,9 +164,10 @@ class TaskManager
     !@tasks[name.to_s.downcase].nil?
   end
 
-  def run_task(name, *args)
+  def run_task(name, args)
     task = @tasks[name.to_s.downcase]
     raise RunxError.new("task '#{name}' not found") if task.nil?
+    args = argv_to_args(args)
     task.run(*args)
   end
 
@@ -168,8 +181,54 @@ class TaskManager
   def word_wrap_line(string, width)
     return [string] if string.length <= width
     index = string.rindex(/\s/, width) || width
-    left, right = string[0...index], string[index...string.length].strip
+    left, right = string[0...index], string[index...string.length].lstrip
     return [left] + word_wrap_line(right, width)
+  end
+
+  def format_parameters(params)
+    params.map { |param|
+      type, name = param
+      name = name.to_s.gsub(/_/, '-')
+      if type == :rest
+        "[#{name.upcase}...]"
+      elsif type == :req
+        name.upcase
+      elsif type == :opt
+        "[#{name.upcase}]"
+      elsif type == :keyreq
+        "--#{name} VALUE"
+      elsif type == :key
+        "[--#{name} VALUE]"
+      end
+    }.join(' ')
+  end
+
+  def argv_to_args(argv)
+    named = {}
+    positional = []
+    name = nil
+
+    argv.each do |arg|
+      if name
+        named[name] = arg
+        name = nil
+      elsif arg =~ /^--(.+?)(=(.*))?$/
+        value = $3
+        name = $1.gsub('-', '_').to_sym
+        if value
+          named[name] = value
+          name = nil
+        end
+      else
+        positional << arg
+      end
+    end
+
+    if named.empty?
+      positional
+    else
+      positional + [named]
+    end
   end
 
   def common_dir_prefix(dirs)
@@ -272,9 +331,8 @@ class Runfile
     @task_source = nil
 
     name = id.to_s
-    run = proc { |*args, &block| obj.send(id, *args, &block) }
-
-    @tasks << Task.new(name, run, @description, @dir, source)
+    method = obj.method(id)
+    @tasks << Task.new(name, method, @description, @dir, source)
   end
 
   attr_accessor :tasks, :imports
@@ -343,7 +401,7 @@ begin
     args = ARGV[1...ARGV.length]
     ARGV.clear
 
-    manager.run_task(task_name, *args)
+    manager.run_task(task_name, args)
   end
 rescue RunxError => e
   $stderr.puts "[runx] error: #{e}"

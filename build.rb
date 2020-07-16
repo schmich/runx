@@ -33,6 +33,7 @@ def build(platform, package)
     system('tar', '-zx', '-C', ruby_dir, '-f', platform_package) || fail
 
     system('cp', File.join(source_dir, 'runx.rb'), app_dir) || fail
+    system('cp', '-R', File.join(source_dir, 'lib'), app_dir) || fail
 
     puts 'Create bindata bundle.'
     Dir.chdir(tmp) do
