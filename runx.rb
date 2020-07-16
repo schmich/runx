@@ -1,3 +1,4 @@
+require 'io/console'
 require 'pathname'
 require 'set'
 
@@ -112,9 +113,19 @@ class TaskManager
     $stderr.puts 'Tasks:'
 
     multifile = @runfiles.values.count > 1
-    leading = multifile ? '    ' : '  '
+    task_leader = multifile ? '    ' : '  '
 
-    width = @tasks.values.map(&:name).map(&:length).max
+    # Some consoles won't let you print on the last column without
+    # an extra newline, so we avoid the last column entirely.
+    _, console_width = IO.console.winsize
+    console_width -= 1
+
+    task_width = @tasks.values.map(&:name).map(&:length).max
+    task_pad = 6
+
+    description_width = console_width - task_leader.length - task_width - task_pad
+    description_leader = ' ' * (task_leader.length + task_width + task_pad)
+
     @runfiles.each do |filename, tasks|
       next if tasks.empty?
 
@@ -125,8 +136,14 @@ class TaskManager
       end
 
       tasks.each do |task|
-        space = ' ' * (width - task.name.length + 6)
-        $stderr.puts "#{leading}#{task.name}#{space}#{task.description}"
+        space = ' ' * (task_width - task.name.length + task_pad)
+        $stderr.print "#{task_leader}#{task.name}#{space}"
+
+        description_lines = word_wrap(task.description, description_width)
+        0.upto(description_lines.count - 1) do |i|
+          $stderr.print description_leader if i > 0
+          $stderr.puts description_lines[i]
+        end
       end
     end
   end
@@ -143,6 +160,25 @@ class TaskManager
 
   private
 
+  def word_wrap(string, width)
+    string.split("\n").flat_map { |part| word_wrap_line(part, width) }
+  end
+
+  def word_wrap_line(string, width)
+    return [string] if string.length <= width
+
+    index = width
+    width.downto(0) do |i|
+      if string[i] == ' '
+        index = i
+        break
+      end
+    end
+
+    left, right = string[0...index], string[index...string.length].strip
+    return [left] + word_wrap_line(right, width)
+  end
+
   def common_dir_prefix(dirs)
     dirs.map { |dir|
       paths = []
@@ -150,13 +186,11 @@ class TaskManager
       paths.reverse
     }.reduce { |acc, cur|
       acc.zip(cur).take_while { |l, r| l == r }.map(&:first)
-    }.map(&:to_s).last || ''
+    }.last.to_s
   end
 
   def relative_path(path)
-    relative_path = Pathname.new(File.dirname(path))
-      .relative_path_from(Pathname.new(@common_dir_prefix)).to_s
-
+    relative_path = Pathname.new(File.dirname(path)).relative_path_from(Pathname.new(@common_dir_prefix)).to_s
     relative_path = '' if relative_path == '.'
 
     common_parent = File.basename(@common_dir_prefix)
