@@ -161,7 +161,8 @@ class TaskManager
   private
 
   def word_wrap(string, width)
-    string.split("\n").flat_map { |part| word_wrap_line(part, width) }
+    lines = string.split("\n").flat_map { |part| word_wrap_line(part, width) }
+    return lines.empty? ? [''] : lines
   end
 
   def word_wrap_line(string, width)
