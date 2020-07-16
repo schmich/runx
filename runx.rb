@@ -167,15 +167,7 @@ class TaskManager
 
   def word_wrap_line(string, width)
     return [string] if string.length <= width
-
-    index = width
-    width.downto(0) do |i|
-      if string[i] == ' '
-        index = i
-        break
-      end
-    end
-
+    index = string.rindex(/\s/, width) || width
     left, right = string[0...index], string[index...string.length].strip
     return [left] + word_wrap_line(right, width)
   end
