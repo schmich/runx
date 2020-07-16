@@ -31,13 +31,14 @@ def build(platform, package)
     FileUtils.mkdir_p(app_dir)
     FileUtils.mkdir_p(ruby_dir)
 
-    system("tar -zxv -C \"#{ruby_dir}\" -f \"#{platform_package}\"")
+    system("tar -zxv -C \"#{ruby_dir}\" -f \"#{platform_package}\"") || fail
 
     FileUtils.copy(File.join(source_dir, 'runx.rb'), app_dir)
 
     puts 'Create bindata bundle.'
     Dir.chdir(tmp) do
       bindata_filename = File.join(source_dir, 'bindata.go')
+      FileUtils.rm_f(bindata_filename)
       system("go-bindata -o \"#{bindata_filename}\" runtime/...") || fail
     end
   end
