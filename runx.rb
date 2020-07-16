@@ -1,111 +1,134 @@
 require 'pathname'
+require 'set'
+
+class RunxError < StandardError
+  def initialize(message)
+    super(message)
+  end
+end
 
 class Task
-  def initialize(name, block, doc, dir, auto)
+  def initialize(name, block, description, dir, source)
     @name = name
     @block = block
-    @doc = doc
+    @description = description
     @dir = dir
-    @auto = auto
+    @source = source
   end
 
-  def run(manager, *args)
-    raise DirNotFoundError.new(@dir, self) if !File.exist?(@dir)
+  def run(*args)
+    if !Dir.exist?(@dir)
+      raise RunxError.new("task #{@name}: directory not found: #{@dir}")
+    end
+
     Dir.chdir(@dir) do
-      $stderr.puts "[runx] In #{@dir}."
+      $stderr.puts "[runx] in #{@dir}"
       @block.call(*args)
     end
   end
 
-  def auto?
-    @auto
-  end
-
-  attr_accessor :name, :doc
+  attr_accessor :name, :description, :source
 end
 
-class TaskNotFoundError < StandardError
-  def initialize(name)
-    @name = name
+class SourceLocation
+  def initialize(filename, line_number)
+    @filename = filename
+    @line_number = line_number
   end
 
-  attr_reader :name
-end
-
-class DirNotFoundError < StandardError
-  def initialize(dir, task)
-    @dir = dir
-    @task = task
+  def self.from_frame(frame)
+    if frame =~ /^(.*?):(\d+)/
+      SourceLocation.new($1, $2.to_i)
+    elsif frame =~ /^(.*?):/
+      SourceLocation.new($1, nil)
+    else
+      SourceLocation.new(nil, nil)
+    end
   end
 
-  attr_reader :dir, :task
-end
-
-class DuplicateTaskError < StandardError
-  def initialize(name)
-    @name = name
+  def to_s
+    if @filename
+      if @line_number
+        "#{@filename}:#{@line_number}"
+      else
+        @filename
+      end
+    else
+      '(unknown)'
+    end
   end
 
-  attr_reader :name
+  attr_accessor :filename, :line_number
 end
 
-class MultipleAutoError < StandardError
-  def initialize(auto, current)
-    @auto = auto
-    @current = current
+class Import
+  def initialize(dir, source)
+    @absolute_dir = File.expand_path(dir).gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+    @source = source
   end
 
-  attr_reader :auto, :current
-end
-
-class MultipleRunfileError < StandardError
-  def initialize(path, files)
-    @path = path
-    @files = files.map { |file| File.basename(file) }
-  end
-
-  attr_reader :path, :files
-end
-
-class NoTasksDefinedError < StandardError
-end
-
-class DirAttributeError < StandardError
-  def initialize(base)
-    @base = base
-  end
-
-  attr_reader :base
+  attr_accessor :absolute_dir, :source
 end
 
 class TaskManager
   def initialize
+    @runfiles = {}
+    @filenames_seen = Set.new
     @tasks = {}
+    @imports = []
+    @common_dir_prefix = nil
   end
 
-  def load(file)
-    @tasks.merge!(load_tasks(file))
-    raise NoTasksDefinedError if @tasks.empty?
+  def load(filename)
+    load_runfile(filename)
+    while @imports.any?
+      import = @imports.pop
+      begin
+        filename = runfile_path(import.absolute_dir)
+        load_runfile(filename)
+      rescue RunxError => e
+        raise RunxError.new("import from #{import.source}: #{e}")
+      end
+    end
+
+    @runfiles.values.flatten.each do |task|
+      copy = @tasks[task.name]
+      if !copy.nil?
+        raise RunxError.new("duplicate task '#{task.name}' defined at #{copy.source} and #{task.source}")
+      end
+
+      @tasks[task.name] = task
+    end
+
+    if @tasks.empty?
+      raise RunxError.new('no tasks defined, see https://github.com/schmich/runx#usage')
+    end
+
+    dirs = @filenames_seen.map { |path| File.dirname(path) }
+    @common_dir_prefix = common_dir_prefix(dirs)
   end
 
   def show_help
     $stderr.puts 'Tasks:'
 
-    # Format to show which task is the auto task, if any.
-    tasks = Hash[@tasks.map { |name, task|
-      [name + (task.auto? ? '*' : ''), task]
-    }]
+    multifile = @runfiles.values.count > 1
+    leading = multifile ? '    ' : '  '
 
-    width = tasks.keys.map(&:length).max
-    tasks.each do |name, task|
-      space = ' ' * (width - name.length + 6)
-      $stderr.puts "  #{name}#{space}#{task.doc}"
+    width = @tasks.values.map(&:name).map(&:length).max
+    @runfiles.each do |filename, tasks|
+      next if tasks.empty?
+
+      $stderr.puts
+      if multifile
+        $stderr.puts "  #{relative_path(filename)}"
+        $stderr.puts
+      end
+
+      tasks.each do |task|
+        space = ' ' * (width - task.name.length + 6)
+        $stderr.puts "#{leading}#{task.name}#{space}#{task.description}"
+      end
     end
-  end
-
-  def auto_task
-    task = @tasks.values.find(&:auto?)
-    task.name if task
   end
 
   def task_defined?(name)
@@ -114,17 +137,52 @@ class TaskManager
 
   def run_task(name, *args)
     task = @tasks[name.to_s.downcase]
-    raise TaskNotFoundError.new(name) if task.nil?
-    task.run(self, *args)
+    raise RunxError.new("task '#{name}' not found") if task.nil?
+    task.run(*args)
   end
 
   private
 
-  def load_tasks(file)
-    context = TaskContext.new(File.dirname(file), self)
-    proxy = TaskContextProxy.new(context)
-    InstanceBinding.for(proxy).eval(File.read(file), file)
-    context.tasks
+  def common_dir_prefix(dirs)
+    dirs.map { |dir|
+      paths = []
+      Pathname.new(dir).cleanpath.ascend { |path| paths << path }
+      paths.reverse
+    }.reduce { |acc, cur|
+      acc.zip(cur).take_while { |l, r| l == r }.map(&:first)
+    }.map(&:to_s).last || ''
+  end
+
+  def relative_path(path)
+    relative_path = Pathname.new(File.dirname(path))
+      .relative_path_from(Pathname.new(@common_dir_prefix)).to_s
+
+    relative_path = '' if relative_path == '.'
+
+    common_parent = File.basename(@common_dir_prefix)
+    return Pathname.new(File.join(common_parent, relative_path))
+      .cleanpath.to_s
+      .gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+  end
+
+  def load_runfile(filename)
+    if !File.exist?(filename)
+      raise RunxError.new("#{filename} not found")
+    end
+
+    absolute_filename = File.expand_path(filename).gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+    absolute_dir = File.dirname(absolute_filename)
+
+    # Do not load the same file twice.
+    return if !@filenames_seen.add?(absolute_filename)
+
+    Dir.chdir(absolute_dir) do
+      runfile = Runfile.new(absolute_dir)
+      context = RunfileContext.new(runfile)
+      InstanceBinding.for(context).eval(File.read(absolute_filename), absolute_filename)
+      @runfiles[absolute_filename] = runfile.tasks
+      @imports += runfile.imports
+    end
   end
 end
 
@@ -139,92 +197,60 @@ module InstanceBinding
   end
 end
 
-class TaskContextProxy
-  def initialize(real)
-    @_ = real
+class RunfileContext
+  def initialize(runfile)
+    @_ = runfile
   end
 
-  def auto
-    @_.auto
+  def import(dir)
+    source = SourceLocation.from_frame(caller(1).first)
+    @_.import(dir, source)
   end
 
-  def dir(base, relative = '.')
-    @_.dir(base, relative)
+  def task(description = '')
+    source = SourceLocation.from_frame(caller(1).first)
+    @_.task(description, source)
   end
 
-  def doc(doc)
-    @_.doc(doc)
-  end
-
-  def run(*args, &block)
-    @_.run(*args, &block)
+  def singleton_method_added(id)
+    source = SourceLocation.from_frame(caller(1).first)
+    @_.method_added(id, self, source)
   end
 end
 
-class TaskContext
-  def initialize(root_dir, manager)
-    @tasks = {}
-    @doc = nil
-    @auto = false
-    @auto_task = nil
-    @task_dir = nil
-    @root_dir = root_dir
-    @manager = manager
+class Runfile
+  def initialize(dir)
+    @tasks = []
+    @imports = []
+    @description = nil
+    @task_source = nil
+    @dir = dir
   end
 
-  def auto
-    @auto = true
+  def import(dir, source)
+    @imports << Import.new(dir, source)
   end
 
-  def dir(base, relative = '.')
-    path = case base
-      when :pwd
-        Dir.pwd
-      when :root
-        @root_dir
-      else
-        raise DirAttributeError.new(base)
+  def task(description, source)
+    if !@task_source.nil?
+      raise RunxError.new("task declared with no implementing method at #{@task_source}")
     end
-    @task_dir = File.absolute_path(File.join(path, relative.to_s))
+
+    @task_source = source
+    @description = description
   end
 
-  def doc(doc)
-    @doc = doc
+  def method_added(id, obj, source)
+    return if @task_source.nil?
+    @task_source = nil
+
+    name = id.to_s
+    run = proc { |*args, &block| obj.send(id, *args, &block) }
+
+    @tasks << Task.new(name, run, @description, @dir, source)
   end
 
-  def run(*args, &block)
-    if block_given?
-      # Define task.
-      name = args.first
-      key = name.to_s.downcase
-
-      if @tasks.include?(key)
-        raise DuplicateTaskError.new(name)
-      end
-
-      task = Task.new(name.to_s, block, @doc, @task_dir || @root_dir, @auto)
-      @tasks[key] = task
-
-      if @auto
-        if @auto_task
-          raise MultipleAutoError.new(@auto_task, task)
-        else
-          @auto_task = task
-        end
-      end
-
-      @task_dir = nil
-      @doc = nil
-      @auto = false
-    else
-      # Invoke task.
-      name = args.first
-      args = args.drop(1)
-      @manager.run_task(name, *args)
-    end
-  end
-
-  attr_accessor :tasks
+  attr_accessor :tasks, :imports
 end
 
 def restore_env
@@ -254,43 +280,34 @@ def restore_env
   end
 end
 
-def find_runfile
-  Pathname.getwd.ascend do |path|
-    files = ['Runfile', 'Runfile.rb'].map { |file|
-      File.join(path.to_s, file)
-    }.select { |file|
-      File.exist?(file)
-    }
-    if files.length == 1
-      return files.first.gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
-    elsif files.length == 2
-      raise MultipleRunfileError.new(path, files)
-    end
-  end
-
-  return nil
+def runfile_path(dir)
+  File.join(dir, 'Runfile.rb').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 end
 
-# Restore environment to match original.
-restore_env
-
-begin
-  runfile = find_runfile
-  if runfile.nil?
-    $stderr.puts '[runx] Error: No Runfile or Runfile.rb found.'
-    exit 1
+def find_runfile
+  Pathname.getwd.ascend do |dir|
+    runfile = runfile_path(dir)
+    return runfile if File.exist?(runfile)
   end
 
+  raise RunxError.new('no Runfile.rb found')
+end
+
+begin
+  # Restore environment to match original.
+  restore_env
+
+  runfile = find_runfile
   manager = TaskManager.new
   manager.load(runfile)
 
-  task_name = ARGV[0] || manager.auto_task
+  task_name = ARGV[0]
 
   is_help = ['-h', '--help', 'help'].include?(task_name)
   show_help = !task_name || (is_help && !manager.task_defined?(task_name))
 
   if show_help
-    $stderr.puts "[runx] In #{File.dirname(runfile)}."
+    $stderr.puts "[runx] in #{File.dirname(runfile)}"
     $stderr.puts
     manager.show_help
   else
@@ -301,26 +318,8 @@ begin
 
     manager.run_task(task_name, *args)
   end
-rescue MultipleRunfileError => e
-  $stderr.puts "[runx] Error: Multiple Runfiles found in #{e.path}: #{e.files.join(', ')}."
-  exit 1
-rescue NoTasksDefinedError => e
-  $stderr.puts '[runx] Error: No tasks defined. See https://github.com/schmich/runx#usage.'
-  exit 1
-rescue TaskNotFoundError => e
-  $stderr.puts "[runx] Error: Task '#{e.name}' not found."
-  exit 1
-rescue DuplicateTaskError => e
-  $stderr.puts "[runx] Error: Task '#{e.name}' is already defined."
-  exit 1
-rescue MultipleAutoError => e
-  $stderr.puts "[runx] Error: Task '#{e.current.name}' cannot be auto, '#{e.auto.name}' is already auto."
-  exit 1
-rescue DirNotFoundError => e
-  $stderr.puts "[runx] Error: Task #{e.task.name}: Directory not found: #{e.dir}."
-  exit 1
-rescue DirAttributeError => e
-  $stderr.puts "[runx] Error: Invalid attribute 'dir :#{e.base}'. Expected :root or :pwd."
+rescue RunxError => e
+  $stderr.puts "[runx] error: #{e}"
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
