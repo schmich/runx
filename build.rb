@@ -1,5 +1,4 @@
 require 'digest'
-require 'fileutils'
 require 'tmpdir'
 require 'set'
 
@@ -14,32 +13,32 @@ def build(platform, package)
   end
 
   if !Dir.exist?('packages')
-    FileUtils.mkdir_p('packages')
+    system('mkdir', '-p', 'packages') || fail
   end
 
   platform_package = File.expand_path("packages/#{package}")
   if !File.exist?(platform_package)
     puts "Download Ruby #{platform} package."
-    system("curl -L --fail -o \"#{platform_package}\" \"https://d6r77u77i8pq3.cloudfront.net/releases/#{package}\"") || fail
+    system('curl', '-L', '--fail', '-o', platform_package, "https://d6r77u77i8pq3.cloudfront.net/releases/#{package}") || fail
   end
 
-  puts 'Create bindata bundle.'
   Dir.mktmpdir do |tmp|
     runtime_dir = File.join(tmp, 'runtime')
     app_dir = File.join(runtime_dir, 'lib', 'app')
     ruby_dir = File.join(runtime_dir, 'lib', 'ruby')
-    FileUtils.mkdir_p(app_dir)
-    FileUtils.mkdir_p(ruby_dir)
+    system('mkdir', '-p', app_dir) || fail
+    system('mkdir', '-p', ruby_dir) || fail
 
-    system("tar -zxv -C \"#{ruby_dir}\" -f \"#{platform_package}\"") || fail
+    puts 'Extract platform package.'
+    system('tar', '-zx', '-C', ruby_dir, '-f', platform_package) || fail
 
-    FileUtils.copy(File.join(source_dir, 'runx.rb'), app_dir)
+    system('cp', File.join(source_dir, 'runx.rb'), app_dir) || fail
 
     puts 'Create bindata bundle.'
     Dir.chdir(tmp) do
       bindata_filename = File.join(source_dir, 'bindata.go')
-      FileUtils.rm_f(bindata_filename)
-      system("go-bindata -o \"#{bindata_filename}\" runtime/...") || fail
+      system('rm', '-f', bindata_filename) || fail
+      system('go-bindata', '-o', bindata_filename, 'runtime/...') || fail
     end
   end
 
@@ -54,7 +53,8 @@ def build(platform, package)
   ENV['GOOS'] = platform
   ENV['GOARCH'] = 'amd64'
 
-  system("go build -ldflags \"-w -s -X main.version=#{version} -X main.commit=#{commit} -X main.payloadDir=#{version}.#{payload_hash}\" -o #{output}") || fail
+  system('rm', '-f', output) || fail
+  system('go', 'build', '-o', output, '-ldflags', "-w -s -X main.version=#{version} -X main.commit=#{commit} -X main.payloadDir=#{version}.#{payload_hash}") || fail
 end
 
 packages = {
@@ -65,13 +65,13 @@ packages = {
 
 platforms = ARGV
 if platforms.empty?
-  $stderr.puts "Specify platform(s): #{packages.keys.join(' ')}"
+  $stderr.puts "Specify platforms: #{packages.keys.join(' ')}"
   exit 1
 end
 
 unknown = Set.new(platforms) - Set.new(packages.keys)
 if unknown.any?
-  $stderr.puts "Unknown platform(s): #{unknown.to_a.join(' ')}"
+  $stderr.puts "Unknown platforms: #{unknown.to_a.join(' ')}"
   exit 1
 end
 
