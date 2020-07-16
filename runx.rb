@@ -31,7 +31,7 @@ class Task
     end
   end
 
-  attr_accessor :name, :method, :description, :source
+  attr_reader :name, :method, :description, :source
 end
 
 class SourceLocation
@@ -62,7 +62,7 @@ class SourceLocation
     end
   end
 
-  attr_accessor :filename, :line_number
+  attr_reader :filename, :line_number
 end
 
 class Import
@@ -71,7 +71,7 @@ class Import
     @source = source
   end
 
-  attr_accessor :absolute_dir, :source
+  attr_reader :absolute_dir, :source
 end
 
 class TaskManager
@@ -335,7 +335,7 @@ class Runfile
     @tasks << Task.new(name, method, @description, @dir, source)
   end
 
-  attr_accessor :tasks, :imports
+  attr_reader :tasks, :imports
 end
 
 def restore_env
