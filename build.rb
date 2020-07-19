@@ -12,11 +12,12 @@ def build(platform, package)
     exit 1
   end
 
-  if !Dir.exist?('packages')
-    system('mkdir', '-p', 'packages') || fail
+  packages_dir = File.join('.build', 'packages')
+  if !Dir.exist?(packages_dir)
+    system('mkdir', '-p', packages_dir) || fail
   end
 
-  platform_package = File.expand_path("packages/#{package}")
+  platform_package = File.expand_path(File.join(packages_dir, package))
   if !File.exist?(platform_package)
     puts "Download Ruby #{platform} package."
     system('curl', '-L', '--fail', '-o', platform_package, "https://d6r77u77i8pq3.cloudfront.net/releases/#{package}") || fail
