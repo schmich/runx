@@ -20,6 +20,17 @@ def delete_image
   system('sudo docker rmi --force runx') || fail
 end
 
+task 'Create & initialize VM for development'
+def init
+  if is_vm?
+    puts 'This should only be run on the host machine.'
+    exit 1
+  end
+
+  system('vagrant up') || fail
+  docker_create
+end
+
 task 'Build runx: linux darwin windows'
 def build(*platform)
   if is_vm?
