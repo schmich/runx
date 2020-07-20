@@ -12,26 +12,155 @@ class RunxError < StandardError
 end
 
 class Task
-  def initialize(name, method, description, dir, source)
-    @name = name
+  def initialize(method, description, dir, source)
+    @name = method.name.to_s.gsub(/_+/, ' ').strip
     @method = method
+    @arguments = TaskArguments.new(method)
     @description = description
     @dir = dir
     @source = source
   end
 
-  def run(*args, &block)
-    if !Dir.exist?(@dir)
-      raise RunxError.new("task #{@name}: directory not found: #{@dir}")
-    end
+  def run(args, &block)
+    begin
+      if !Dir.exist?(@dir)
+        raise RunxError.new("directory not found: #{@dir}")
+      end
 
-    Dir.chdir(@dir) do
-      $stderr.puts "[runx] in #{@dir}"
-      @method.call(*args, &block)
+      task_args = @arguments.from_cli(args)
+      Dir.chdir(@dir) do
+        $stderr.puts "[runx] in #{@dir}"
+        @method.call(*task_args, &block)
+      end
+    rescue RunxError => e
+      raise RunxError.new("in task #{@name.cyan}: #{e}")
     end
   end
 
-  attr_reader :name, :method, :description, :source
+  attr_reader :name, :method, :arguments, :description, :source
+end
+
+class TaskArguments
+  def initialize(method)
+    @method = method
+  end
+
+  def from_cli(args)
+    params_type = { req: [], opt: [], rest: [], keyreq: [], key: [], keyrest: [] }.merge(Hash[
+      @method.parameters
+             .group_by(&:first)
+             .map { |type, params| [type, params.map(&:last)] }
+    ])
+
+    has_rest = params_type[:rest].any?
+    has_keyrest = params_type[:keyrest].any?
+
+    keys = params_type[:key] + params_type[:keyreq]
+
+    positional = []
+    keyed = {}
+    key = nil
+
+    # If a keyed argument is seen multiple times, map it to an array of values.
+    # '--opt a' becomes { opt: 'a' }
+    # '--opt a --opt b' becomes { opt: ['a', 'b'] }
+    add_keyed_value = proc { |key, value|
+      existing = keyed[key]
+      if existing.nil?
+        keyed[key] = value
+      elsif existing.is_a?(Array)
+        keyed[key] << value
+      else
+        keyed[key] = [existing, value]
+      end
+    }
+
+    args.each do |arg|
+      if key
+        add_keyed_value.call(key, arg)
+        key = nil
+      elsif arg =~ /^--?(.+?)(=(.*))?$/
+        name = $1
+        value = $3
+        key = name_key(name)
+        if !keys.include?(key) && !has_rest && !has_keyrest
+          raise RunxError.new("invalid option --#{name}")
+        end
+
+        if value
+          add_keyed_value.call(key, value)
+          key = nil
+        end
+      else
+        positional << arg
+      end
+    end
+
+    # Handle trailing options with no value.
+    if key
+      add_keyed_value.call(key, '')
+      key = nil
+    end
+
+    req_count = params_type[:req].count
+    opt_count = params_type[:opt].count
+
+    if positional.count < req_count
+      required = params_type[:req].drop(positional.count).map { |arg| positional_name(arg) }.join(' ')
+      raise RunxError.new("missing required arguments: #{required}")
+    end
+
+    max_positional = req_count + opt_count
+    if positional.count > max_positional && !has_rest
+      raise RunxError.new("too many arguments: given #{positional.count}, max #{max_positional}")
+    end
+
+    required_keys = params_type[:keyreq]
+    missing_keys = required_keys - keyed.keys
+
+    if missing_keys.any?
+      required = missing_keys.map { |key| "--#{key_name(key)}" }.join(' ')
+      raise RunxError.new("missing required options: #{required}")
+    end
+
+    if keyed.empty?
+      positional
+    else
+      positional + [keyed]
+    end
+  end
+
+  def to_s
+    @method.parameters.map { |type, sym|
+      if type == :req
+        positional_name(sym)
+      elsif type == :opt
+        "[#{positional_name(sym)}]"
+      elsif type == :rest
+        "[#{positional_name(sym)}...]"
+      elsif type == :keyreq
+        "--#{key_name(sym)} VALUE"
+      elsif type == :key
+        "[--#{key_name(sym)} VALUE]"
+      elsif type == :keyrest
+        "[--NAME VALUE...]"
+      end
+    }.join(' ')
+  end
+
+  private
+
+  def positional_name(arg)
+    arg.to_s.upcase
+  end
+
+  def key_name(key)
+    key.to_s.gsub('_', '-')
+  end
+
+  def name_key(name)
+    name.gsub('-', '_').to_sym
+  end
 end
 
 class SourceLocation
@@ -86,7 +215,7 @@ class TaskManager
   def load(filename)
     load_runfile(filename)
     while @imports.any?
-      import = @imports.pop
+      import = @imports.shift
       begin
         filename = runfile_path(import.absolute_dir)
         load_runfile(filename)
@@ -96,9 +225,9 @@ class TaskManager
     end
 
     @runfiles.values.flatten.each do |task|
-      copy = @tasks[task.name]
-      if !copy.nil?
-        raise RunxError.new("duplicate task '#{task.name}' defined at #{copy.source} and #{task.source}")
+      dup = @tasks[task.name]
+      if !dup.nil?
+        raise RunxError.new("duplicate task #{task.name.cyan} defined at #{dup.source} and #{task.source}")
       end
 
       @tasks[task.name] = task
@@ -123,13 +252,13 @@ class TaskManager
     _, console_width = IO.console.winsize
     console_width -= 1
 
-    parameters = Hash[@tasks.values.map { |task|
-      [task, format_parameters(task.method.parameters)]
+    args = Hash[@tasks.values.map { |task|
+      [task, task.arguments.to_s]
     }]
 
     make_title = proc { |task, colorize|
       name = colorize ? task.name.cyan : task.name
-      [name, parameters[task]].reject(&:empty?).join(' ')
+      [name, args[task]].reject(&:empty?).join(' ')
     }
 
     task_width = @tasks.values.map { |task| make_title.call(task, false).length }.max
@@ -158,17 +287,35 @@ class TaskManager
         end
       end
     end
+
+    $stderr.puts
   end
 
   def task_defined?(name)
     !@tasks[name.to_s.downcase].nil?
   end
 
-  def run_task(name, args)
-    task = @tasks[name.to_s.downcase]
-    raise RunxError.new("task '#{name}' not found") if task.nil?
-    args = argv_to_args(args)
-    task.run(*args)
+  def run_task(args)
+    # Because task methods have underscores mapped to spaces for ergonomics (e.g. 'foo_bar' becomes 'foo bar')
+    # *and* because we allow command-line arguments, determining which task to run can be ambiguous.
+    # Here, we take the approach of running the task with the longest matching name. We try to find a
+    # matching task using all args. If no matching task is found, we move the last arg onto the list of
+    # arguments passed to the task and repeat this process with the new, shorter task name.
+
+    tasks = Hash[@tasks.map { |name, task| [name.split(' '), task] }]
+
+    task_args = []
+    while !args.empty?
+      task = tasks[args]
+      if task
+        return task.run(task_args)
+      end
+
+      task_args.unshift(args.pop)
+    end
+
+    # No more args and we never matched a task name.
+    raise RunxError.new('invalid task')
   end
 
   private
@@ -183,52 +330,6 @@ class TaskManager
     index = string.rindex(/\s/, width) || width
     left, right = string[0...index], string[index...string.length].lstrip
     return [left] + word_wrap_line(right, width)
-  end
-
-  def format_parameters(params)
-    params.map { |param|
-      type, name = param
-      name = name.to_s.gsub(/_/, '-')
-      if type == :rest
-        "[#{name.upcase}...]"
-      elsif type == :req
-        name.upcase
-      elsif type == :opt
-        "[#{name.upcase}]"
-      elsif type == :keyreq
-        "--#{name} VALUE"
-      elsif type == :key
-        "[--#{name} VALUE]"
-      end
-    }.join(' ')
-  end
-
-  def argv_to_args(argv)
-    named = {}
-    positional = []
-    name = nil
-
-    argv.each do |arg|
-      if name
-        named[name] = arg
-        name = nil
-      elsif arg =~ /^--(.+?)(=(.*))?$/
-        value = $3
-        name = $1.gsub('-', '_').to_sym
-        if value
-          named[name] = value
-          name = nil
-        end
-      else
-        positional << arg
-      end
-    end
-
-    if named.empty?
-      positional
-    else
-      positional + [named]
-    end
   end
 
   def common_dir_prefix(dirs)
@@ -332,7 +433,7 @@ class Runfile
 
     name = id.to_s
     method = obj.method(id)
-    @tasks << Task.new(name, method, @description, @dir, source)
+    @tasks << Task.new(method, @description, @dir, source)
   end
 
   attr_reader :tasks, :imports
@@ -386,11 +487,7 @@ begin
   manager = TaskManager.new
   manager.load(runfile)
 
-  task_name = ARGV[0]
-
-  is_help = ['-h', '--help', 'help'].include?(task_name)
-  show_help = !task_name || (is_help && !manager.task_defined?(task_name))
-
+  show_help = ARGV.empty? || (ARGV.length == 1 && ['-h', '--help', 'help', '/?', '-?'].include?(ARGV[0]))
   if show_help
     $stderr.puts "[runx] in #{File.dirname(runfile)}"
     $stderr.puts
@@ -398,13 +495,13 @@ begin
   else
     # Clear ARGV to avoid interference with `gets`:
     # http://ruby-doc.org/core-2.1.5/Kernel.html#method-i-gets
-    args = ARGV[1...ARGV.length]
+    args = ARGV[0...ARGV.length]
     ARGV.clear
 
-    manager.run_task(task_name, args)
+    manager.run_task(args)
   end
 rescue RunxError => e
-  $stderr.puts "[runx] error: #{e}"
+  $stderr.puts "[runx] #{'error'.red.bold}: #{e}"
   exit 1
 rescue Interrupt => e
   # Ignore interrupt and exit.
