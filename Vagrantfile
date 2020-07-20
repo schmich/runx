@@ -26,6 +26,9 @@ Vagrant.configure('2') do |config|
       docker-ce-cli \
       containerd.io
 
+    curl -Ls https://github.com/schmich/runx/releases/latest/download/runx-linux-x64 > /usr/bin/runx \
+      && chmod +x /usr/bin/runx
+
     echo 'cd /src' >> ~vagrant/.bashrc
 SCRIPT
 
