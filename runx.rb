@@ -495,7 +495,7 @@ begin
     ARGV.clear
 
     # Pass-through task exit code.
-    exit manager.run_task(args)
+    manager.run_task(args)
   end
 rescue Runx::RunxError => e
   $stderr.puts "[runx] #{'error'.red.bold}: #{e}"
