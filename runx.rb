@@ -447,7 +447,7 @@ begin
       return runfile if File.exist?(runfile)
     end
 
-    raise RunxError.new('no Runfile.rb found')
+    raise Runx::RunxError.new('no Runfile.rb found')
   end
 
   restore_env = lambda do
